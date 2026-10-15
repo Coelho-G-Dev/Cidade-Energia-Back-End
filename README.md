@@ -31,7 +31,7 @@ Preencha o `.env.local` com as chaves do projeto Supabase (peça a alguém do ba
 | `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave pública (*publishable*). O front também usa esta |
 | `SUPABASE_SERVICE_ROLE_KEY` | Chave secreta. **Só no servidor, nunca no front** |
-| `GEMINI_API_KEY` / `GEMINI_MODEL` | Tutor Energinho (próximas etapas) |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | Tutor Energinho (Ainda não construido) |
 | `CORS_ORIGEM` | Endereço do front liberado no CORS (padrão `http://localhost:5173`) |
 
 Se o front rodar em outra porta ou domínio, ajuste `CORS_ORIGEM` e reinicie a API.
