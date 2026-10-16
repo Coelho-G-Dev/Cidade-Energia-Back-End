@@ -5,6 +5,7 @@ import { GET as getDocs } from "@/app/api/docs/route";
 import { GET as getOpenApi } from "@/app/api/openapi/route";
 import { especificacaoOpenApi } from "@/lib/openapi";
 import { atualizarPerfilSchema } from "@/lib/validacao/perfil";
+import { pedaleSchema, responderSchema } from "@/lib/validacao/conteudo";
 import { criarSimulacaoSchema } from "@/lib/validacao/simulacao";
 
 const PASTA_API = path.resolve(__dirname, "../src/app/api");
@@ -17,7 +18,7 @@ function rotasDoProjeto(pasta = PASTA_API): { caminho: string; metodos: string[]
     if (entrada.isDirectory()) return rotasDoProjeto(completo);
     if (entrada.name !== "route.ts") return [];
     const codigo = readFileSync(completo, "utf8");
-    const caminho = "/api/" + path.relative(PASTA_API, pasta).split(path.sep).join("/");
+    const caminho = ("/api/" + path.relative(PASTA_API, pasta).split(path.sep).join("/")).replace(/\[(\w+)\]/g, "{$1}");
     const metodos = METODOS.filter((m) => new RegExp(`export (async )?function ${m}\\b`).test(codigo));
     return [{ caminho, metodos }];
   });
@@ -68,6 +69,13 @@ describe("especificação OpenAPI", () => {
     for (const [nome, { value }] of Object.entries(exemplos)) {
       expect(criarSimulacaoSchema.safeParse(value).success, nome).toBe(true);
     }
+  });
+
+  it("os exemplos de POST /api/quiz/responder e /api/pedale/concluir passam na validação real", () => {
+    const quiz = especificacaoOpenApi.paths["/api/quiz/responder"].post.requestBody.content["application/json"].examples;
+    for (const [nome, { value }] of Object.entries(quiz)) expect(responderSchema.safeParse(value).success, nome).toBe(true);
+    const pedale = especificacaoOpenApi.paths["/api/pedale/concluir"].post.requestBody.content["application/json"].examples;
+    for (const [nome, { value }] of Object.entries(pedale)) expect(pedaleSchema.safeParse(value).success, nome).toBe(true);
   });
 });
 

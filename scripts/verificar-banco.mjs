@@ -218,10 +218,228 @@ async function verificarRotas({ A, B, bairroId }) {
   checar("POST com consumo negativo → 400", invalida.status === 400 && invalida.corpo.erro?.codigo === "ENTRADA_INVALIDA");
 }
 
+async function verificarBancoDia2({ A, B }) {
+  const anon = novoCliente();
+
+  console.log("\n— Dia 2: conteúdo público e gabarito escondido");
+  const trilhas = await anon.from("trilhas").select("id, slug");
+  checar("lê as 5 trilhas", !trilhas.error && trilhas.data.length === 5, trilhas.error?.message);
+  const perguntas = await anon.from("perguntas").select("id, enunciado, opcoes");
+  checar("lê perguntas sem o gabarito", !perguntas.error && perguntas.data.length === 20, perguntas.error?.message);
+  checar("NÃO lê indice_correto", Boolean((await anon.from("perguntas").select("indice_correto")).error));
+  checar("NÃO lê explicacao", Boolean((await A.cliente.from("perguntas").select("explicacao")).error));
+  checar("NÃO lê perguntas com select *", Boolean((await A.cliente.from("perguntas").select("*")).error));
+  for (const [tabela, total] of [["missoes", 2], ["conquistas", 6], ["pontos_mapa", 6]]) {
+    const r = await anon.from(tabela).select("*");
+    checar(`lê ${tabela} (${total})`, !r.error && r.data.length === total, r.error?.message);
+  }
+  const ranking = await anon.from("ranking_escolas").select("escola_id, nome, pontos, participantes, posicao");
+  checar("lê ranking_escolas (só quem tem pontos)", !ranking.error && ranking.data.every((r) => r.pontos > 0), ranking.error?.message);
+  checar("ranking_escolas não expõe perfil_id", Boolean((await anon.from("ranking_escolas").select("perfil_id")).error));
+  checar("ranking_escolas não expõe primeiro_nome", Boolean((await anon.from("ranking_escolas").select("primeiro_nome")).error));
+  const resumoAnon = await anon.from("perfil_resumo").select("*");
+  checar("NÃO lê perfil_resumo sem login", Boolean(resumoAnon.error) || resumoAnon.data.length === 0);
+
+  console.log("\n— Dia 2: o cliente não grava dados de jogo");
+  const licao = (await anon.from("licoes").select("id").limit(1)).data[0];
+  const pergunta = perguntas.data[0];
+  const tentativas = [
+    ["pontos_eventos", { perfil_id: A.id, origem: "licao_concluida", referencia_id: licao.id, pontos: 999 }],
+    ["respostas", { perfil_id: A.id, pergunta_id: pergunta.id, opcao: 0, correta: true }],
+    ["progresso_licoes", { perfil_id: A.id, licao_id: licao.id }],
+    ["conquistas_usuario", { perfil_id: A.id, conquista_slug: "bairro_unido" }],
+  ];
+  for (const [tabela, linha] of tentativas) {
+    checar(`A NÃO insere em ${tabela}`, Boolean((await A.cliente.from(tabela).insert(linha)).error));
+  }
+  const altera = await B.cliente.from("trilhas").update({ titulo: "Hack" }).eq("id", trilhas.data[0].id).select();
+  checar("B NÃO altera trilhas", Boolean(altera.error) || altera.data.length === 0);
+}
+
+async function verificarRotasDia2({ A, B }) {
+  console.log(`\n— Dia 2: rotas (${env.api})`);
+  const chamar = async (metodo, caminho, { token, body } = {}) => {
+    const r = await fetch(`${env.api}${caminho}`, {
+      method: metodo,
+      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { status: r.status, corpo: await r.json() };
+  };
+
+  const trilhas = await chamar("GET", "/api/trilhas");
+  checar("GET /api/trilhas sem login → 5 trilhas", trilhas.status === 200 && trilhas.corpo.length === 5);
+  const solar = await chamar("GET", "/api/trilhas/energia-solar-em-sao-luis", { token: A.token });
+  checar("GET /api/trilhas/{slug} → 4 lições, 1 pedale", solar.status === 200 && solar.corpo.licoes.length === 4 && solar.corpo.licoes.filter((l) => l.tipo === "pedale").length === 1);
+  const inexistente = await chamar("GET", "/api/trilhas/nao-existe");
+  checar("GET trilha inexistente → 404", inexistente.status === 404 && inexistente.corpo.erro?.codigo === "TRILHA_NAO_ENCONTRADA");
+
+  const [l1, l2, pedale] = [solar.corpo.licoes[0], solar.corpo.licoes[1], solar.corpo.licoes.find((l) => l.tipo === "pedale")];
+  const licao = await chamar("GET", `/api/licoes/${l1.id}`);
+  checar("GET /api/licoes/{id} → conteúdo em markdown", licao.status === 200 && licao.corpo.conteudo.includes("[REVISAR]") && licao.corpo.proximaLicaoId === l2.id);
+
+  const quiz = await chamar("GET", `/api/licoes/${l2.id}/quiz`, { token: A.token });
+  checar("GET quiz → 2 perguntas, sem gabarito", quiz.status === 200 && quiz.corpo.perguntas.length === 2 && !/indice_correto|explicacao/.test(JSON.stringify(quiz.corpo)));
+  const [p1, p2] = quiz.corpo.perguntas;
+  const gabarito = new Map(
+    (await admin.from("perguntas").select("id, indice_correto").in("id", [p1.id, p2.id])).data.map((p) => [p.id, p.indice_correto]),
+  );
+
+  const perfilA = await chamar("GET", "/api/perfil", { token: A.token });
+  const pontosEscola = async () =>
+    (await chamar("GET", "/api/rankings?tipo=escolas")).corpo.find((e) => e.id === perfilA.corpo.escola_id)?.pontos ?? 0;
+  const escolaAntes = await pontosEscola();
+
+  const certa = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p1.id, opcao: gabarito.get(p1.id) } });
+  checar("resposta certa na 1ª tentativa → 5 pontos", certa.status === 200 && certa.corpo.correta && certa.corpo.pontosGanhos === 5, JSON.stringify(certa.corpo));
+  const escolaDepois = await pontosEscola();
+  checar(`ranking da escola muda depois da resposta certa (${escolaAntes} → ${escolaDepois})`, escolaDepois === escolaAntes + 5);
+  const repetida = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p1.id, opcao: gabarito.get(p1.id) } });
+  checar("repetir a resposta certa → 0 pontos", repetida.status === 200 && repetida.corpo.pontosGanhos === 0 && !repetida.corpo.tentativaPontuavel);
+  checar("ranking não muda com a repetição", (await pontosEscola()) === escolaDepois);
+
+  const errada = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p2.id, opcao: (gabarito.get(p2.id) + 1) % p2.opcoes.length } });
+  checar("resposta errada → explicação e nova tentativa em 24 h", errada.status === 200 && !errada.corpo.correta && errada.corpo.explicacao && errada.corpo.proximaTentativaEm);
+  const corrigida = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p2.id, opcao: gabarito.get(p2.id) } });
+  checar("acertar logo depois de errar NÃO pontua", corrigida.status === 200 && corrigida.corpo.correta && corrigida.corpo.pontosGanhos === 0 && !corrigida.corpo.tentativaPontuavel);
+  const foraDaLista = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p1.id, opcao: 4 } });
+  checar("opção fora da lista → 400", foraDaLista.status === 400);
+
+  const concluir = await chamar("POST", `/api/licoes/${l1.id}/concluir`, { token: A.token });
+  const concluirDeNovo = await chamar("POST", `/api/licoes/${l1.id}/concluir`, { token: A.token });
+  checar("concluir lição → 10 pontos; de novo → 0", concluir.corpo.pontosGanhos === 10 && concluirDeNovo.corpo.pontosGanhos === 0);
+  const pedaleComoTexto = await chamar("POST", `/api/licoes/${pedale.id}/concluir`, { token: A.token });
+  checar("lição pedale pelo concluir → 400 LICAO_E_PEDALE", pedaleComoTexto.status === 400 && pedaleComoTexto.corpo.erro?.codigo === "LICAO_E_PEDALE");
+  const pedal = await chamar("POST", "/api/pedale/concluir", { token: A.token, body: { licaoId: pedale.id } });
+  const pedalDeNovo = await chamar("POST", "/api/pedale/concluir", { token: A.token, body: { licaoId: pedale.id } });
+  checar("pedale → 15 pontos; de novo → 0", pedal.corpo.pontosGanhos === 15 && pedalDeNovo.corpo.pontosGanhos === 0);
+  const textoComoPedale = await chamar("POST", "/api/pedale/concluir", { token: A.token, body: { licaoId: l1.id } });
+  checar("lição de texto no pedale → 400", textoComoPedale.status === 400 && textoComoPedale.corpo.erro?.codigo === "LICAO_NAO_E_PEDALE");
+
+  const missoes = await chamar("GET", "/api/missoes", { token: A.token });
+  const descarte = missoes.corpo.find((m) => m.slug === "descarte-de-lixo-eletronico");
+  const arMissao = missoes.corpo.find((m) => m.slug === "ar-desligado-antes-de-dormir");
+  const registro = await chamar("POST", `/api/missoes/${descarte.id}/registrar`, { token: A.token });
+  checar(
+    "missão de 1 dia → concluída, 30 pontos e conquista Descarte certo",
+    registro.status === 200 && registro.corpo.concluida && registro.corpo.pontosGanhos === 30 && registro.corpo.conquistasNovas.some((c) => c.slug === "descarte_certo"),
+    JSON.stringify(registro.corpo),
+  );
+  const registroDeNovo = await chamar("POST", `/api/missoes/${descarte.id}/registrar`, { token: A.token });
+  checar("registrar de novo no mesmo dia → sem novo registro e 0 pontos", !registroDeNovo.corpo.novoRegistro && registroDeNovo.corpo.pontosGanhos === 0);
+  const ar = await chamar("POST", `/api/missoes/${arMissao.id}/registrar`, { token: A.token });
+  checar("missão de 3 dias → 1/3, sem pontos", ar.corpo.diasRegistrados === 1 && !ar.corpo.concluida && ar.corpo.pontosGanhos === 0);
+
+  const resumoA = await chamar("GET", "/api/perfil/resumo", { token: A.token });
+  checar(
+    "resumo de A: 60 pontos, missão, conquista e posição da escola",
+    resumoA.status === 200 && resumoA.corpo.pontos === 60 && resumoA.corpo.missoesConcluidas === 1 && resumoA.corpo.licoesConcluidas === 2 &&
+      resumoA.corpo.conquistas.find((c) => c.slug === "descarte_certo")?.obtida && resumoA.corpo.escola?.posicao >= 1,
+    JSON.stringify(resumoA.corpo),
+  );
+  const resumoB = await chamar("GET", "/api/perfil/resumo", { token: B.token });
+  checar(
+    "resumo de B: 20 pontos da primeira simulação e a conquista",
+    resumoB.status === 200 && resumoB.corpo.pontos === 20 && resumoB.corpo.conquistas.find((c) => c.slug === "primeira_simulacao")?.obtida,
+    JSON.stringify(resumoB.corpo),
+  );
+
+  console.log("\n— Dia 2: isolamento entre A e B");
+  for (const tabela of ["respostas", "progresso_licoes", "missoes_registros", "conquistas_usuario"]) {
+    const r = await B.cliente.from(tabela).select("perfil_id");
+    checar(`B NÃO lê ${tabela} de A`, !r.error && r.data.every((linha) => linha.perfil_id === B.id), r.error?.message);
+  }
+  const pontosB = await B.cliente.from("pontos_eventos").select("perfil_id");
+  checar("B só vê os próprios pontos", !pontosB.error && pontosB.data.length === 1 && pontosB.data[0].perfil_id === B.id);
+  const quizB = await chamar("GET", `/api/licoes/${l2.id}/quiz`, { token: B.token });
+  checar("quiz de B não mostra as respostas de A", quizB.corpo.perguntas.every((p) => !p.jaRespondida && p.podePontuar));
+  const missoesB = await chamar("GET", "/api/missoes", { token: B.token });
+  checar("missões de B não mostram os registros de A", missoesB.corpo.every((m) => m.diasRegistrados === 0));
+
+  const mapa = await chamar("GET", "/api/mapa/pontos?tipo=coleta");
+  checar("GET /api/mapa/pontos?tipo=coleta → 2 pontos", mapa.status === 200 && mapa.corpo.length === 2);
+  const bairros = await chamar("GET", "/api/rankings?tipo=bairros");
+  checar(
+    "GET /api/rankings?tipo=bairros → só bairros com pontos, a partir da posição 1",
+    bairros.status === 200 && bairros.corpo.length >= 1 && bairros.corpo.every((b) => b.pontos > 0) && bairros.corpo[0].posicao === 1,
+    JSON.stringify(bairros.corpo),
+  );
+  const escolas = await chamar("GET", "/api/rankings?tipo=escolas");
+  checar("GET /api/rankings?tipo=escolas → nenhuma escola com 0 pontos", escolas.status === 200 && escolas.corpo.every((e) => e.pontos > 0));
+}
+
+async function verificarTrocasECors({ A, B }) {
+  console.log(`\n— Limite de trocas e CORS (${env.api})`);
+  const chamar = async (metodo, caminho, { token, body, origem } = {}) => {
+    const r = await fetch(`${env.api}${caminho}`, {
+      method: metodo,
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(origem ? { origin: origem } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const texto = await r.text();
+    return { status: r.status, corpo: texto ? JSON.parse(texto) : null, cabecalhos: r.headers };
+  };
+
+  const inicial = await chamar("GET", "/api/perfil", { token: B.token });
+  checar(
+    "GET /api/perfil informa 3 trocas restantes, sem data",
+    inicial.corpo.limite_trocas === 3 && inicial.corpo.trocas_restantes === 3 && inicial.corpo.proxima_troca_em === null,
+    JSON.stringify(inicial.corpo),
+  );
+
+  const bairros = (await chamar("GET", "/api/bairros")).corpo.map((b) => b.id);
+  const [b1, b2, b3, b4] = bairros.slice(1, 5);
+  for (const [i, bairro] of [b1, b2, b3].entries()) {
+    const r = await chamar("PUT", "/api/perfil", { token: B.token, body: { primeiro_nome: "Bia", bairro_id: bairro } });
+    checar(
+      `troca ${i + 1} de bairro permitida (restam ${2 - i})`,
+      r.status === 200 && r.corpo.bairro_id === bairro && r.corpo.trocas_restantes === 2 - i,
+      JSON.stringify(r.corpo),
+    );
+  }
+  const esgotado = await chamar("GET", "/api/perfil", { token: B.token });
+  checar(
+    "sem trocas restantes, GET /api/perfil traz a data de liberação",
+    esgotado.corpo.trocas_restantes === 0 && typeof esgotado.corpo.proxima_troca_em === "string",
+    JSON.stringify(esgotado.corpo),
+  );
+  const quarta = await chamar("PUT", "/api/perfil", { token: B.token, body: { primeiro_nome: "Bia", bairro_id: b4 } });
+  checar(
+    "4ª troca em 30 dias → 429 LIMITE_DE_TROCAS com a data de liberação",
+    quarta.status === 429 && quarta.corpo.erro?.codigo === "LIMITE_DE_TROCAS" && /a partir de \d{2}\/\d{2} às \d{2}:\d{2}/.test(quarta.corpo.erro.mensagem),
+    JSON.stringify(quarta.corpo),
+  );
+  const soNome = await chamar("PUT", "/api/perfil", { token: B.token, body: { primeiro_nome: "Beatriz", bairro_id: b3 } });
+  checar("mudar só o nome continua permitido", soNome.status === 200 && soNome.corpo.primeiro_nome === "Beatriz");
+  const direto = await B.cliente.from("perfis").update({ bairro_id: b4 }).eq("id", B.id).select();
+  checar("NÃO burla o limite gravando direto no Supabase", direto.error?.code === "CE001", JSON.stringify(direto.error ?? direto.data));
+  const trocasB = await B.cliente.from("trocas_local").select("perfil_id");
+  checar("B lê as próprias 3 trocas", !trocasB.error && trocasB.data.length === 3, trocasB.error?.message);
+  const trocasA = await A.cliente.from("trocas_local").select("perfil_id");
+  checar("A NÃO lê as trocas de B", !trocasA.error && trocasA.data.every((t) => t.perfil_id === A.id));
+  checar("B NÃO apaga o histórico de trocas", Boolean((await B.cliente.from("trocas_local").delete().eq("perfil_id", B.id).select()).error));
+
+  const preflight = await chamar("OPTIONS", "/api/bairros", { origem: "http://localhost:5173" });
+  checar(
+    "CORS: preflight da origem permitida → 204 com Access-Control-Allow-Origin",
+    preflight.status === 204 && preflight.cabecalhos.get("access-control-allow-origin") === "http://localhost:5173",
+  );
+  const estranha = await chamar("GET", "/api/bairros", { origem: "https://site-estranho.com" });
+  checar("CORS: origem fora da lista não é liberada", !estranha.cabecalhos.get("access-control-allow-origin"));
+}
+
 try {
   const contexto = await verificarBanco();
-  if (env.api) await verificarRotas(contexto);
-  else console.log("\n(API_URL não definida: rotas não verificadas)");
+  await verificarBancoDia2(contexto);
+  if (env.api) {
+    await verificarRotas(contexto);
+    await verificarRotasDia2(contexto);
+    await verificarTrocasECors(contexto);
+  } else console.log("\n(API_URL não definida: rotas não verificadas)");
 } catch (e) {
   falhas++;
   console.error(`\n✘ Erro: ${e.message}`);

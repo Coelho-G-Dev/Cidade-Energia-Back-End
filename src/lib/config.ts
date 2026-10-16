@@ -12,6 +12,23 @@ export const REGRAS_ECONOMIA: Readonly<Record<string, { reducaoHorasDia: number;
   chuveiro: { reducaoHorasDia: 10 / 60, dica: "Tomar banhos 10 minutos mais curtos por dia" },
 };
 
+export const FUSO_SAO_LUIS = "America/Fortaleza";
+
+export const PONTOS_POR_ORIGEM = {
+  primeira_simulacao: 20,
+  licao_concluida: 10,
+  resposta_correta: 5,
+  pedale_concluido: 15,
+} as const;
+
+export const HORAS_ENTRE_TENTATIVAS_QUIZ = 24;
+export const PONTOS_BAIRRO_UNIDO = 500;
+
+export const TRILHA_ENERGIA_SOLAR = "energia-solar-em-sao-luis";
+export const TRILHA_CONTA_DE_LUZ = "entendendo-a-sua-conta-de-luz";
+export const MISSAO_AR_CONDICIONADO = "ar-desligado-antes-de-dormir";
+export const MISSAO_DESCARTE = "descarte-de-lixo-eletronico";
+
 export const FONTES = {
   TARIFA_PADRAO_R_KWH:
     "Tarifa residencial convencional B1 da Equatorial Maranhão: R$ 0,8888/kWh (TE + TUSD), sem ICMS, PIS/COFINS e contribuição de iluminação pública, vigente desde 28/ago/2026 (reajuste residencial de 5,20%). Considera bandeira verde, sem acréscimo. Fonte: ANEEL, valores homologados (dados públicos).",

@@ -45,6 +45,12 @@ async function validarToken(supabase: SupabaseClient, token: string): Promise<st
   }
 }
 
+export type SessaoOpcional = { usuarioId: string | null; supabase: SupabaseClient };
+
+export async function sessaoOpcional(request: Request): Promise<SessaoOpcional> {
+  return (await obterSessao(request)) ?? { usuarioId: null, supabase: clienteAnonimo() };
+}
+
 export async function exigirSessao(request: Request): Promise<Sessao> {
   const sessao = await obterSessao(request);
   if (!sessao) throw naoAutenticado();

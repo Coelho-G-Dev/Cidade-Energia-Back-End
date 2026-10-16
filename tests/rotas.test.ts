@@ -38,6 +38,8 @@ describe("POST /api/simulacoes", () => {
       co2EvitadoKgAno: 197.6,
       pesos: [],
       simulacaoId: null,
+      pontosGanhos: 0,
+      conquistasNovas: [],
     });
   });
 
