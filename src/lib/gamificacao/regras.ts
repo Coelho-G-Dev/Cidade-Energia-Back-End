@@ -72,7 +72,7 @@ export function licaoPendenteAntes(
   return pendente ? { id: pendente.id, titulo: pendente.titulo } : null;
 }
 
-export type RespostaAnterior ={ correta: boolean; tentativaEm: Date } | null;
+export type RespostaAnterior = { correta: boolean; tentativaEm: Date } | null;
 export type DecisaoTentativa = { pontuavel: boolean; proximaTentativaEm: Date | null };
 
 const MS_POR_HORA = 3_600_000;

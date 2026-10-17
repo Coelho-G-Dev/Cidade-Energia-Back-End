@@ -52,6 +52,8 @@ export const PONTOS_POR_ORIGEM = {
 
 export const HORAS_ENTRE_TENTATIVAS_QUIZ = 24;
 export const LIMITE_SIMULACAO_PUBLICA_POR_MINUTO = 600;
+export const LIMITE_PREVIA_POR_PERFIL = 120;
+export const JANELA_LIMITE_PREVIA_POR_PERFIL = "10 minutes";
 export const PONTOS_BAIRRO_UNIDO = 500;
 
 export const TRILHA_ENERGIA_SOLAR = "energia-solar-em-sao-luis";

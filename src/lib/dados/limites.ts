@@ -1,6 +1,10 @@
 import { createHmac } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { LIMITE_SIMULACAO_PUBLICA_POR_MINUTO } from "@/lib/config";
+import {
+  JANELA_LIMITE_PREVIA_POR_PERFIL,
+  LIMITE_PREVIA_POR_PERFIL,
+  LIMITE_SIMULACAO_PUBLICA_POR_MINUTO,
+} from "@/lib/config";
 import { envServidor } from "@/lib/env";
 import { ErroApi } from "@/lib/http/erros";
 import { clienteAdmin } from "@/lib/supabase/admin";
@@ -15,12 +19,16 @@ export function chaveDoLimite(escopo: string, ip: string, segredo: string): stri
   return `${escopo}:${createHmac("sha256", segredo).update(ip).digest("hex")}`;
 }
 
-export async function consumirLimitePublico(
-  admin: SupabaseClient,
-  chave: string,
-  limite: number,
-  janela: string,
-): Promise<void> {
+export type RegraDeLimite = { chave: string; limite: number; janela: string };
+
+export function regraDaSimulacao(usuarioId: string | null, ip: string, segredo: string): RegraDeLimite {
+  if (usuarioId) {
+    return { chave: `previa:perfil:${usuarioId}`, limite: LIMITE_PREVIA_POR_PERFIL, janela: JANELA_LIMITE_PREVIA_POR_PERFIL };
+  }
+  return { chave: chaveDoLimite("simulacao", ip, segredo), limite: LIMITE_SIMULACAO_PUBLICA_POR_MINUTO, janela: "1 minute" };
+}
+
+export async function consumirLimitePublico(admin: SupabaseClient, { chave, limite, janela }: RegraDeLimite): Promise<void> {
   const { data, error } = await admin
     .rpc("consumir_limite_publico", { p_chave: chave, p_limite: limite, p_janela: janela })
     .single<{ permitido: boolean; liberado_em: string | null }>();
@@ -29,11 +37,11 @@ export async function consumirLimitePublico(
     return;
   }
   if (!data.permitido) {
-    throw new ErroApi(429, "LIMITE_DE_REQUISICOES", "Muitas simulações seguidas deste endereço. Espere um minuto e tente de novo.");
+    throw new ErroApi(429, "LIMITE_DE_REQUISICOES", "Muitas simulações seguidas. Espere um pouco e tente de novo.");
   }
 }
 
-export async function limitarSimulacaoPublica(request: Request): Promise<void> {
-  const chave = chaveDoLimite("simulacao", ipDaRequisicao(request), envServidor().SUPABASE_SERVICE_ROLE_KEY);
-  await consumirLimitePublico(clienteAdmin(), chave, LIMITE_SIMULACAO_PUBLICA_POR_MINUTO, "1 minute");
+export async function limitarSimulacao(request: Request, usuarioId: string | null): Promise<void> {
+  const regra = regraDaSimulacao(usuarioId, ipDaRequisicao(request), envServidor().SUPABASE_SERVICE_ROLE_KEY);
+  await consumirLimitePublico(clienteAdmin(), regra);
 }

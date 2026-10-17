@@ -66,6 +66,7 @@ export type RegistroMissao = ResultadoEvento & {
   dia: string;
   novoRegistro: boolean;
   diasRegistrados: number;
+  diasMarcados: string[];
   diasNecessarios: number;
   concluida: boolean;
 };
@@ -94,14 +95,15 @@ export async function registrarMissao(
     .select("dia");
   if (insercao.error) throw erroDoBanco(insercao.error);
 
-  const contagem = await admin
+  const registros = await admin
     .from("missoes_registros")
-    .select("dia", { count: "exact", head: true })
+    .select("dia")
     .eq("perfil_id", perfilId)
     .eq("missao_id", missaoId);
-  if (contagem.error) throw erroDoBanco(contagem.error);
+  if (registros.error) throw erroDoBanco(registros.error);
 
-  const diasRegistrados = contagem.count ?? 0;
+  const diasMarcados = (registros.data as { dia: string }[]).map((r) => r.dia).sort();
+  const diasRegistrados = diasMarcados.length;
   const concluida = missaoCompleta(diasRegistrados, missao.dias_necessarios);
   const evento = concluida ? await registrarEvento(admin, perfilId, "missao_concluida", missaoId) : SEM_EVENTO;
 
@@ -110,6 +112,7 @@ export async function registrarMissao(
     dia,
     novoRegistro: (insercao.data ?? []).length > 0,
     diasRegistrados,
+    diasMarcados,
     diasNecessarios: missao.dias_necessarios,
     concluida,
     ...evento,

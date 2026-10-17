@@ -272,8 +272,9 @@ Content-Type: application/json
 
 A resposta é igual à do modo conta sem login acima (`simulacaoId: null`, `pontosGanhos: 0`).
 
-**Limite:** esta rota e `POST /api/simulacoes` sem login dividem um limite de 600 chamadas por minuto por endereço
-de rede (uma escola inteira pode sair pelo mesmo endereço). O endereço não é guardado: o banco recebe só um hash.
+**Limite:** com token válido, conta por perfil: 120 prévias a cada 10 minutos. Sem token, esta rota e
+`POST /api/simulacoes` sem login dividem 600 chamadas por minuto por endereço de rede (uma escola inteira pode
+sair pelo mesmo endereço). O endereço não é guardado: o banco recebe só um hash.
 
 Erros: `400 ENTRADA_INVALIDA`, `400 JSON_INVALIDO`, `404 APARELHO_NAO_ENCONTRADO`, `429 LIMITE_DE_REQUISICOES`.
 
@@ -629,6 +630,7 @@ Authorization: Bearer <token>
   "dia": "2026-10-16",
   "novoRegistro": true,
   "diasRegistrados": 3,
+  "diasMarcados": ["2026-10-14", "2026-10-15", "2026-10-16"],
   "diasNecessarios": 3,
   "concluida": true,
   "pontosGanhos": 30,
@@ -716,6 +718,6 @@ Erros: `400 ENTRADA_INVALIDA`.
 | 429 | `LIMITE_DE_TROCAS` | 3 trocas de bairro ou escola nos últimos 30 dias |
 | 429 | `AGUARDE_NOVA_TENTATIVA` | Nova tentativa do quiz ainda não liberada (24 h depois do erro) |
 | 429 | `LIMITE_TUTOR` | 20 mensagens ao tutor na última hora |
-| 429 | `LIMITE_DE_REQUISICOES` | Muitas simulações sem login do mesmo endereço no último minuto |
+| 429 | `LIMITE_DE_REQUISICOES` | Muitas simulações seguidas (sem login, por endereço; na prévia com login, por perfil) |
 | 500 | `ERRO_INTERNO` | Erro inesperado |
 | 503 | `TUTOR_INDISPONIVEL` | O serviço de IA não respondeu |

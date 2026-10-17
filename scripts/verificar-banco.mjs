@@ -375,7 +375,11 @@ async function verificarRotasDia2({ A, B }) {
   const registroDeNovo = await chamar("POST", `/api/missoes/${descarte.id}/registrar`, { token: A.token });
   checar("registrar de novo no mesmo dia → sem novo registro e 0 pontos", !registroDeNovo.corpo.novoRegistro && registroDeNovo.corpo.pontosGanhos === 0);
   const ar = await chamar("POST", `/api/missoes/${arMissao.id}/registrar`, { token: A.token });
-  checar("missão de 3 dias → 1/3, sem pontos", ar.corpo.diasRegistrados === 1 && !ar.corpo.concluida && ar.corpo.pontosGanhos === 0);
+  checar(
+    "missão de 3 dias → 1/3, sem pontos, com o dia de hoje em diasMarcados",
+    ar.corpo.diasRegistrados === 1 && !ar.corpo.concluida && ar.corpo.pontosGanhos === 0 && ar.corpo.diasMarcados?.join() === ar.corpo.dia,
+    JSON.stringify(ar.corpo),
+  );
 
   const resumoA = await chamar("GET", "/api/perfil/resumo", { token: A.token });
   checar(

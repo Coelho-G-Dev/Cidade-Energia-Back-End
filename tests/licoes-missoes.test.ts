@@ -113,7 +113,9 @@ describe("registrarMissao", () => {
       if (op.tabela === "missoes" && usou(op, "maybeSingle")) return { data: { id: MISSAO, dias_necessarios: 3, pontos: 30 } };
       if (op.tabela === "missoes") return { data: [{ id: MISSAO, slug: "ar-desligado-antes-de-dormir" }] };
       if (op.tabela === "missoes_registros" && usou(op, "upsert")) return { data: novo ? [{ dia: "x" }] : [] };
-      if (op.tabela === "missoes_registros") return { count: dias };
+      if (op.tabela === "missoes_registros") {
+        return { data: ["2026-10-15", "2026-10-13", "2026-10-14"].slice(0, dias).map((dia) => ({ dia })) };
+      }
       if (op.tabela === "pontos_eventos" && usou(op, "upsert")) return { data: [{ pontos: 30 }] };
       if (op.tabela === "simulacoes") return { count: 0 };
       if (op.tabela === "perfis") return { data: { bairro_id: null } };
@@ -124,7 +126,14 @@ describe("registrarMissao", () => {
   it("registra o dia no fuso de São Luís e não pontua antes de completar", async () => {
     const { cliente, operacoes } = bancoMissao({ dias: 1, novo: true });
     const r = await registrarMissao(cliente, PERFIL, MISSAO, new Date("2026-10-16T02:00:00Z"));
-    expect(r).toMatchObject({ dia: "2026-10-15", novoRegistro: true, diasRegistrados: 1, concluida: false, pontosGanhos: 0 });
+    expect(r).toMatchObject({
+      dia: "2026-10-15",
+      novoRegistro: true,
+      diasRegistrados: 1,
+      diasMarcados: ["2026-10-15"],
+      concluida: false,
+      pontosGanhos: 0,
+    });
     expect(eventoDePontos(operacoes)).toBeUndefined();
     const registro = operacoes.find((o) => o.tabela === "missoes_registros" && usou(o, "upsert"))!;
     expect(usou(registro, "upsert")?.args).toEqual([
@@ -136,7 +145,8 @@ describe("registrarMissao", () => {
   it("ao completar os dias necessários, pontua com os pontos da missão", async () => {
     const { cliente, operacoes } = bancoMissao({ dias: 3, novo: true });
     const r = await registrarMissao(cliente, PERFIL, MISSAO, new Date("2026-10-16T12:00:00Z"));
-    expect(r).toMatchObject({ concluida: true, pontosGanhos: 30, diasNecessarios: 3 });
+    expect(r).toMatchObject({ concluida: true, pontosGanhos: 30, diasNecessarios: 3, diasRegistrados: 3 });
+    expect(r.diasMarcados).toEqual(["2026-10-13", "2026-10-14", "2026-10-15"]);
     expect(eventoDePontos(operacoes)).toMatchObject({ origem: "missao_concluida", referencia_id: MISSAO, pontos: 30 });
   });
 

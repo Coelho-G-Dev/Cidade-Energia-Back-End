@@ -12,7 +12,7 @@ vi.mock("@/lib/dados/irradiacao", () => ({
 }));
 
 const limitar = vi.hoisted(() => vi.fn(async () => {}));
-vi.mock("@/lib/dados/limites", () => ({ limitarSimulacaoPublica: limitar }));
+vi.mock("@/lib/dados/limites", () => ({ limitarSimulacao: limitar }));
 
 const URL_BASE = "http://localhost:3000";
 
@@ -81,6 +81,8 @@ describe("POST /api/simulacoes", () => {
   it("sem login passa pelo limite das rotas públicas", async () => {
     await postSimulacao(requisicao("/api/simulacoes", { metodo: "POST", body: { modo: "conta", consumoKwh: 150 } }));
     expect(limitar).toHaveBeenCalledTimes(1);
+    expect(limitar.mock.calls[0]).toHaveLength(2);
+    expect((limitar.mock.calls[0] as unknown[])[1]).toBeNull();
   });
 
   it("acima do limite responde 429 LIMITE_DE_REQUISICOES", async () => {
@@ -100,6 +102,7 @@ describe("POST /api/simulacoes/previa", () => {
     const resultado = await previa.json();
     expect(resultado).toEqual(await anonima.json());
     expect(resultado).toMatchObject({ simulacaoId: null, pontosGanhos: 0, conquistasNovas: [] });
+    expect((limitar.mock.calls[0] as unknown[])[1]).toBeNull();
   });
 
   it("valida o corpo antes de consumir o limite", async () => {
