@@ -1,9 +1,13 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { GET as getEscolas } from "@/app/api/escolas/route";
 import { GET as getPerfil, PUT as putPerfil } from "@/app/api/perfil/route";
 import { POST as postSimulacao } from "@/app/api/simulacoes/route";
 import { GET as getUltima } from "@/app/api/simulacoes/ultima/route";
+
+vi.mock("@/lib/dados/irradiacao", () => ({
+  irradiacaoMediaAnual: async () => ({ data: null, valor: 5.226, fonte: "cache" }),
+}));
 
 const URL_BASE = "http://localhost:3000";
 
@@ -35,7 +39,7 @@ describe("POST /api/simulacoes", () => {
       economiaMensal: 31.2,
       placas: 6,
       retornoAnos: 2.5,
-      co2EvitadoKgAno: 197.6,
+      co2EvitadoKgAno: 191.2,
       pesos: [],
       simulacaoId: null,
       pontosGanhos: 0,

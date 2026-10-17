@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PONTOS_POR_ORIGEM } from "@/lib/config";
-import { obterQuiz, responderPergunta } from "@/lib/dados/quiz";
+import { mensagemNovaTentativa, obterQuiz, responderPergunta } from "@/lib/dados/quiz";
 import { supabaseFalso, usou, type Operacao } from "./apoio/supabase-falso";
 
 const PERFIL = "11111111-1111-4111-8111-111111111111";
@@ -16,7 +16,11 @@ const pergunta = {
   explicacao: "Porque sim.",
 };
 
-type Estado = { resposta: { correta: boolean; tentativa_em: string } | null; pontosJaDados: boolean };
+type Estado = {
+  resposta: { correta: boolean; tentativa_em: string } | null;
+  pontosJaDados: boolean;
+  perdeuCorrida?: boolean;
+};
 
 function banco(estado: Estado) {
   return supabaseFalso((op: Operacao) => {
@@ -25,8 +29,8 @@ function banco(estado: Estado) {
       case "perguntas":
         return { data: pergunta };
       case "respostas":
-        if (metodo("upsert")) return { data: estado.resposta ? [] : [{ pergunta_id: PERGUNTA }] };
-        if (metodo("update")) return { data: [{ pergunta_id: PERGUNTA }] };
+        if (metodo("upsert")) return { data: estado.resposta || estado.perdeuCorrida ? [] : [{ pergunta_id: PERGUNTA }] };
+        if (metodo("update")) return { data: estado.perdeuCorrida ? [] : [{ pergunta_id: PERGUNTA }] };
         return { data: estado.resposta };
       case "pontos_eventos":
         return { data: estado.pontosJaDados ? [] : [{ pontos: PONTOS_POR_ORIGEM.resposta_correta }] };
@@ -58,21 +62,41 @@ describe("responderPergunta", () => {
     expect(escreveuResposta(operacoes)).toBe(true);
   });
 
-  it("primeira tentativa errada: grava, não pontua e libera nova tentativa em 24 h", async () => {
+  it("primeira tentativa errada: grava, não pontua, não revela a explicação e libera nova tentativa em 24 h", async () => {
     const { cliente, operacoes } = banco({ resposta: null, pontosJaDados: false });
     const r = await responderPergunta(cliente, PERFIL, PERGUNTA, 0, AGORA);
-    expect(r).toMatchObject({ correta: false, tentativaPontuavel: true, pontosGanhos: 0 });
+    expect(r).toMatchObject({ correta: false, explicacao: null, tentativaPontuavel: true, pontosGanhos: 0 });
     expect(r.proximaTentativaEm).toBe("2026-10-17T12:00:00.000Z");
     expect(concedeuPontos(operacoes)).toBe(false);
   });
 
-  it("acertar dentro das 24 h depois de um erro não pontua nem altera o registro", async () => {
+  it("responder dentro das 24 h depois de um erro responde 429 sem corrigir nem alterar o registro", async () => {
     const { cliente, operacoes } = banco({ resposta: { correta: false, tentativa_em: horasAtras(2) }, pontosJaDados: false });
-    const r = await responderPergunta(cliente, PERFIL, PERGUNTA, 1, AGORA);
-    expect(r).toMatchObject({ correta: true, tentativaPontuavel: false, pontosGanhos: 0 });
-    expect(r.proximaTentativaEm).toBe("2026-10-17T10:00:00.000Z");
+    await expect(responderPergunta(cliente, PERFIL, PERGUNTA, 1, AGORA)).rejects.toMatchObject({
+      status: 429,
+      codigo: "AGUARDE_NOVA_TENTATIVA",
+      message: "Você já respondeu esta pergunta. Uma nova tentativa será liberada em 17/10 às 07:00.",
+    });
     expect(escreveuResposta(operacoes)).toBe(false);
     expect(concedeuPontos(operacoes)).toBe(false);
+  });
+
+  it("tentativas simultâneas: a que perde a corrida responde 429 sem revelar a correção", async () => {
+    const { cliente, operacoes } = banco({ resposta: null, pontosJaDados: false, perdeuCorrida: true });
+    await expect(responderPergunta(cliente, PERFIL, PERGUNTA, 1, AGORA)).rejects.toMatchObject({
+      status: 429,
+      codigo: "AGUARDE_NOVA_TENTATIVA",
+      message: mensagemNovaTentativa(null),
+    });
+    expect(concedeuPontos(operacoes)).toBe(false);
+  });
+
+  it("nova tentativa depois de 24 h que perde a corrida também responde 429", async () => {
+    const { cliente } = banco({ resposta: { correta: false, tentativa_em: horasAtras(25) }, pontosJaDados: false, perdeuCorrida: true });
+    await expect(responderPergunta(cliente, PERFIL, PERGUNTA, 1, AGORA)).rejects.toMatchObject({
+      status: 429,
+      codigo: "AGUARDE_NOVA_TENTATIVA",
+    });
   });
 
   it("depois de 24 h a nova tentativa pontua, com update protegido contra corrida", async () => {
@@ -91,6 +115,12 @@ describe("responderPergunta", () => {
     expect(escreveuResposta(operacoes)).toBe(false);
   });
 
+  it("depois de acertar, escolher outra opção só diz que está errada, sem explicação", async () => {
+    const { cliente } = banco({ resposta: { correta: true, tentativa_em: horasAtras(1) }, pontosJaDados: true });
+    const r = await responderPergunta(cliente, PERFIL, PERGUNTA, 0, AGORA);
+    expect(r).toMatchObject({ correta: false, explicacao: null, tentativaPontuavel: false, pontosGanhos: 0 });
+  });
+
   it("opção fora da lista responde 400", async () => {
     const { cliente } = banco({ resposta: null, pontosJaDados: false });
     await expect(responderPergunta(cliente, PERFIL, PERGUNTA, 3, AGORA)).rejects.toMatchObject({
@@ -105,6 +135,18 @@ describe("responderPergunta", () => {
       status: 404,
       codigo: "PERGUNTA_NAO_ENCONTRADA",
     });
+  });
+});
+
+describe("mensagemNovaTentativa", () => {
+  it("mostra o dia e a hora de São Luís", () => {
+    expect(mensagemNovaTentativa(new Date("2026-10-17T12:00:00Z"))).toBe(
+      "Você já respondeu esta pergunta. Uma nova tentativa será liberada em 17/10 às 09:00.",
+    );
+  });
+
+  it("sem data, pede para tentar mais tarde", () => {
+    expect(mensagemNovaTentativa(null)).toBe("Você já respondeu esta pergunta. Tente de novo mais tarde.");
   });
 });
 

@@ -8,6 +8,7 @@ type LinhaPerfil = {
   primeiro_nome: string | null;
   bairro_id: string | null;
   escola_id: string | null;
+  escola_verificada: boolean;
   criado_em: string;
 };
 
@@ -19,7 +20,7 @@ type SituacaoTrocas = {
 
 export type Perfil = LinhaPerfil & SituacaoTrocas & { tem_perfil: boolean };
 
-const colunas = "id, primeiro_nome, bairro_id, escola_id, criado_em";
+const colunas = "id, primeiro_nome, bairro_id, escola_id, escola_verificada, criado_em";
 
 async function situacaoTrocas(supabase: SupabaseClient, usuarioId: string): Promise<SituacaoTrocas> {
   const { data, error } = await supabase
@@ -124,6 +125,12 @@ async function resolverEscola(supabase: SupabaseClient, dados: AtualizarPerfil):
   return dados.escola_id ?? null;
 }
 
+async function confirmarTurma(supabase: SupabaseClient, codigo: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("confirmar_turma", { p_codigo: codigo });
+  if (error) throw erroDoBanco(error);
+  return data === true;
+}
+
 export async function atualizarPerfil(
   supabase: SupabaseClient,
   usuarioId: string,
@@ -155,5 +162,7 @@ export async function atualizarPerfil(
     }
     throw convertido;
   }
-  return montarPerfil(data, await situacaoTrocas(supabase, usuarioId));
+
+  const escolaVerificada = dados.codigo_turma ? await confirmarTurma(supabase, dados.codigo_turma) : data.escola_verificada;
+  return montarPerfil({ ...data, escola_verificada: escolaVerificada }, await situacaoTrocas(supabase, usuarioId));
 }

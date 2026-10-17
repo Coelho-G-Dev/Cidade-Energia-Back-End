@@ -7,6 +7,7 @@ import { especificacaoOpenApi } from "@/lib/openapi";
 import { atualizarPerfilSchema } from "@/lib/validacao/perfil";
 import { pedaleSchema, responderSchema } from "@/lib/validacao/conteudo";
 import { criarSimulacaoSchema } from "@/lib/validacao/simulacao";
+import { tutorSchema } from "@/lib/validacao/tutor";
 
 const PASTA_API = path.resolve(__dirname, "../src/app/api");
 const ROTAS_DE_DOCUMENTACAO = new Set(["/api/docs", "/api/openapi"]);
@@ -76,6 +77,13 @@ describe("especificação OpenAPI", () => {
     for (const [nome, { value }] of Object.entries(quiz)) expect(responderSchema.safeParse(value).success, nome).toBe(true);
     const pedale = especificacaoOpenApi.paths["/api/pedale/concluir"].post.requestBody.content["application/json"].examples;
     for (const [nome, { value }] of Object.entries(pedale)) expect(pedaleSchema.safeParse(value).success, nome).toBe(true);
+  });
+});
+
+describe("exemplos do tutor", () => {
+  it("os exemplos de POST /api/tutor passam na validação real", () => {
+    const exemplos = especificacaoOpenApi.paths["/api/tutor"].post.requestBody.content["application/json"].examples;
+    for (const [nome, { value }] of Object.entries(exemplos)) expect(tutorSchema.safeParse(value).success, nome).toBe(true);
   });
 });
 

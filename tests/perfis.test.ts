@@ -5,7 +5,16 @@ import { supabaseFalso, usou } from "./apoio/supabase-falso";
 const PERFIL = "11111111-1111-4111-8111-111111111111";
 const BAIRRO = "22222222-2222-4222-8222-222222222222";
 
-const linhaPerfil = { id: PERFIL, primeiro_nome: "Ana", bairro_id: BAIRRO, escola_id: null, criado_em: "2026-10-15T12:00:00.000Z" };
+const ESCOLA = "33333333-3333-4333-8333-333333333333";
+
+const linhaPerfil = {
+  id: PERFIL,
+  primeiro_nome: "Ana",
+  bairro_id: BAIRRO,
+  escola_id: null,
+  escola_verificada: false,
+  criado_em: "2026-10-15T12:00:00.000Z",
+};
 
 function bancoPerfil(situacao: Record<string, unknown> | null) {
   return supabaseFalso((op) => {
@@ -38,6 +47,41 @@ describe("perfil com a situação das trocas", () => {
     const { cliente } = bancoPerfil({ limite: 3, trocas_restantes: 1, proxima_troca_em: null });
     const r = await atualizarPerfil(cliente, PERFIL, { primeiro_nome: "Ana", bairro_id: BAIRRO });
     expect(r).toMatchObject({ tem_perfil: true, limite_trocas: 3, trocas_restantes: 1 });
+  });
+});
+
+describe("escola verificada pelo código de turma", () => {
+  function bancoTurma(confirmada: boolean, linha: Record<string, unknown>) {
+    return supabaseFalso((op) => {
+      if (op.tabela === "situacao_trocas") return { data: { limite: 3, trocas_restantes: 3, proxima_troca_em: null } };
+      if (op.tabela === "rpc:resolver_codigo_turma") return { data: ESCOLA };
+      if (op.tabela === "rpc:confirmar_turma") return { data: confirmada };
+      return { data: linha };
+    });
+  }
+
+  it("com codigo_turma: grava a escola da turma e confirma a turma no banco", async () => {
+    const { cliente, operacoes } = bancoTurma(true, { ...linhaPerfil, escola_id: ESCOLA });
+    const r = await atualizarPerfil(cliente, PERFIL, { primeiro_nome: "Ana", bairro_id: BAIRRO, codigo_turma: "SOL2026" });
+    expect(r).toMatchObject({ escola_id: ESCOLA, escola_verificada: true });
+    const upsert = usou(operacoes.find((o) => o.tabela === "perfis")!, "upsert")!.args[0];
+    expect(upsert).toEqual({ id: PERFIL, primeiro_nome: "Ana", bairro_id: BAIRRO, escola_id: ESCOLA });
+    const rpc = operacoes.find((o) => o.tabela === "rpc:confirmar_turma")!;
+    expect(usou(rpc, "rpc")?.args).toEqual([{ p_codigo: "SOL2026" }]);
+  });
+
+  it("com escola_id: não confirma turma e devolve o que o banco decidiu", async () => {
+    const { cliente, operacoes } = bancoTurma(true, { ...linhaPerfil, escola_id: ESCOLA, escola_verificada: false });
+    const r = await atualizarPerfil(cliente, PERFIL, { primeiro_nome: "Ana", bairro_id: BAIRRO, escola_id: ESCOLA });
+    expect(r.escola_verificada).toBe(false);
+    expect(operacoes.some((o) => o.tabela === "rpc:confirmar_turma")).toBe(false);
+  });
+
+  it("o cliente nunca envia escola_verificada", async () => {
+    const { cliente, operacoes } = bancoTurma(false, linhaPerfil);
+    await atualizarPerfil(cliente, PERFIL, { primeiro_nome: "Ana", bairro_id: BAIRRO });
+    const upsert = usou(operacoes.find((o) => o.tabela === "perfis")!, "upsert")!.args[0] as object;
+    expect(upsert).not.toHaveProperty("escola_verificada");
   });
 });
 

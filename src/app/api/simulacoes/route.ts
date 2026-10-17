@@ -1,4 +1,5 @@
-import { simular } from "@/lib/calculos/simulador";
+import { PARAMETROS_PADRAO, simular } from "@/lib/calculos/simulador";
+import { irradiacaoMediaAnual } from "@/lib/dados/irradiacao";
 import { registrarEvento, SEM_EVENTO } from "@/lib/dados/pontos";
 import { montarEntrada, salvarSimulacao } from "@/lib/dados/simulacoes";
 import { tratarErro } from "@/lib/http/erros";
@@ -12,7 +13,8 @@ export async function POST(request: Request) {
     const sessao = await obterSessao(request);
     const supabase = sessao?.supabase ?? clienteAnonimo();
 
-    const resultado = simular(await montarEntrada(supabase, body));
+    const [entrada, irradiacao] = await Promise.all([montarEntrada(supabase, body), irradiacaoMediaAnual()]);
+    const resultado = simular(entrada, { ...PARAMETROS_PADRAO, irradiacao: irradiacao.valor });
 
     if (!sessao) return Response.json({ ...resultado, simulacaoId: null, ...SEM_EVENTO });
 

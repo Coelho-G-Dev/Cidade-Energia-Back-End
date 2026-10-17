@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { HORAS_ENTRE_TENTATIVAS_QUIZ } from "@/lib/config";
+import { FUSO_SAO_LUIS, HORAS_ENTRE_TENTATIVAS_QUIZ } from "@/lib/config";
 import { registrarEvento, SEM_EVENTO, type ResultadoEvento } from "@/lib/dados/pontos";
 import { avaliarTentativa, type RespostaAnterior } from "@/lib/gamificacao/regras";
 import { ErroApi, erroDoBanco, naoEncontrado } from "@/lib/http/erros";
@@ -75,10 +75,26 @@ export async function obterQuiz(
 
 export type RespostaDoQuiz = ResultadoEvento & {
   correta: boolean;
-  explicacao: string;
+  explicacao: string | null;
   tentativaPontuavel: boolean;
   proximaTentativaEm: string | null;
 };
+
+const formatoNovaTentativa = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: FUSO_SAO_LUIS,
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+export function mensagemNovaTentativa(liberadaEm: Date | null): string {
+  const base = "Você já respondeu esta pergunta.";
+  if (!liberadaEm) return `${base} Tente de novo mais tarde.`;
+  const p = Object.fromEntries(formatoNovaTentativa.formatToParts(liberadaEm).map((parte) => [parte.type, parte.value]));
+  return `${base} Uma nova tentativa será liberada em ${p.day}/${p.month} às ${p.hour}:${p.minute}.`;
+}
 
 async function gravarTentativa(
   admin: SupabaseClient,
@@ -150,12 +166,20 @@ export async function responderPergunta(
     ? await gravarTentativa(admin, perfilId, perguntaId, opcao, correta, agora, anterior)
     : false;
 
+  if (!registrada && !anterior?.correta) {
+    throw new ErroApi(
+      429,
+      "AGUARDE_NOVA_TENTATIVA",
+      mensagemNovaTentativa(decisao.pontuavel ? null : decisao.proximaTentativaEm),
+    );
+  }
+
   const estadoFinal: RespostaAnterior = registrada ? { correta, tentativaEm: agora } : anterior;
   const evento = estadoFinal?.correta ? await registrarEvento(admin, perfilId, "resposta_correta", perguntaId) : SEM_EVENTO;
 
   return {
     correta,
-    explicacao: pergunta.explicacao,
+    explicacao: correta ? pergunta.explicacao : null,
     tentativaPontuavel: registrada,
     proximaTentativaEm: avaliarTentativa(estadoFinal, agora).proximaTentativaEm?.toISOString() ?? null,
     ...evento,

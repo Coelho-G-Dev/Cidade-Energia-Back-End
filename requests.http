@@ -1,0 +1,181 @@
+@baseUrl = http://localhost:3000
+@supabaseUrl = https://SEU-PROJETO.supabase.co
+@anonKey = COLE_A_CHAVE_PUBLICA_AQUI
+@token = {{login.response.body.access_token}}
+
+@bairroId = COLE_UM_ID_DE_GET_/api/bairros
+@aparelhoId = COLE_UM_ID_DE_GET_/api/aparelhos
+@licaoId = COLE_UM_ID_DE_GET_/api/trilhas/energia-solar-em-sao-luis
+@pedaleId = COLE_O_ID_DA_LICAO_PEDALE
+@perguntaId = COLE_UM_ID_DE_GET_/api/licoes/{id}/quiz
+@missaoId = COLE_UM_ID_DE_GET_/api/missoes
+
+### Login anônimo no Supabase (gera o token)
+# @name login
+POST {{supabaseUrl}}/auth/v1/signup
+apikey: {{anonKey}}
+Content-Type: application/json
+
+{}
+
+### Catálogos
+
+### Bairros
+GET {{baseUrl}}/api/bairros
+
+### Escolas (filtro por bairro é opcional)
+GET {{baseUrl}}/api/escolas?bairro={{bairroId}}
+
+### Aparelhos do simulador
+GET {{baseUrl}}/api/aparelhos
+
+### Perfil
+
+### Perfil do usuário logado
+GET {{baseUrl}}/api/perfil
+Authorization: Bearer {{token}}
+
+### Criar ou atualizar o perfil com o código da turma
+PUT {{baseUrl}}/api/perfil
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "primeiro_nome": "Ana", "bairro_id": "{{bairroId}}", "codigo_turma": "SOL2026" }
+
+### Resumo: pontos, conquistas e ranking
+GET {{baseUrl}}/api/perfil/resumo
+Authorization: Bearer {{token}}
+
+### Simulador
+
+### Simular pela conta, sem login (não salva)
+POST {{baseUrl}}/api/simulacoes
+Content-Type: application/json
+
+{ "modo": "conta", "consumoKwh": 380, "valorConta": 312 }
+
+### Simular pelos aparelhos, com login (salva e pontua na primeira vez)
+POST {{baseUrl}}/api/simulacoes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "modo": "aparelhos", "itens": [{ "aparelhoId": "{{aparelhoId}}", "quantidade": 1, "horasDia": 0.5 }] }
+
+### Última simulação salva
+GET {{baseUrl}}/api/simulacoes/ultima
+Authorization: Bearer {{token}}
+
+### Sol de hoje (NASA POWER)
+GET {{baseUrl}}/api/sol-de-hoje
+
+### Tutor Energinho
+
+### Pergunta simples
+POST {{baseUrl}}/api/tutor
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "mensagem": "Por que o sol de São Luís é tão forte?" }
+
+### Pergunta com histórico
+POST {{baseUrl}}/api/tutor
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "mensagem": "E quantas placas uma casa precisa?",
+  "historico": [
+    { "papel": "usuario", "texto": "Como a placa solar funciona?" },
+    { "papel": "energinho", "texto": "A placa transforma a luz do sol em energia elétrica." }
+  ]
+}
+
+### Pergunta fora do tema (o Energinho recusa com gentileza)
+POST {{baseUrl}}/api/tutor
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "mensagem": "Qual a capital da França?" }
+
+### Trilhas, lições e quiz
+
+### Trilhas com progresso
+GET {{baseUrl}}/api/trilhas
+Authorization: Bearer {{token}}
+
+### Uma trilha com as lições
+GET {{baseUrl}}/api/trilhas/energia-solar-em-sao-luis
+Authorization: Bearer {{token}}
+
+### Conteúdo da lição
+GET {{baseUrl}}/api/licoes/{{licaoId}}
+Authorization: Bearer {{token}}
+
+### Concluir lição de texto (10 pontos, uma vez)
+POST {{baseUrl}}/api/licoes/{{licaoId}}/concluir
+Authorization: Bearer {{token}}
+
+### Quiz da lição (sem a resposta certa)
+GET {{baseUrl}}/api/licoes/{{licaoId}}/quiz
+Authorization: Bearer {{token}}
+
+### Responder pergunta do quiz
+POST {{baseUrl}}/api/quiz/responder
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "perguntaId": "{{perguntaId}}", "opcao": 0 }
+
+### Concluir o Pedale e veja (15 pontos, uma vez)
+POST {{baseUrl}}/api/pedale/concluir
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "licaoId": "{{pedaleId}}" }
+
+### Missões
+
+### Missões com progresso
+GET {{baseUrl}}/api/missoes
+Authorization: Bearer {{token}}
+
+### Registrar a missão hoje
+POST {{baseUrl}}/api/missoes/{{missaoId}}/registrar
+Authorization: Bearer {{token}}
+
+### Rankings e mapa
+
+### Ranking de escolas
+GET {{baseUrl}}/api/rankings?tipo=escolas
+
+### Ranking de bairros
+GET {{baseUrl}}/api/rankings?tipo=bairros
+
+### Pontos de coleta no mapa
+GET {{baseUrl}}/api/mapa/pontos?tipo=coleta
+
+### Documentação
+
+### Swagger UI (abra no navegador)
+GET {{baseUrl}}/api/docs
+
+### Especificação OpenAPI
+GET {{baseUrl}}/api/openapi
+
+### Erros padronizados
+
+### Sem token: 401 NAO_AUTENTICADO
+GET {{baseUrl}}/api/perfil
+
+### Campo inválido: 400 ENTRADA_INVALIDA
+POST {{baseUrl}}/api/simulacoes
+Content-Type: application/json
+
+{ "modo": "conta", "consumoKwh": -5 }
+
+### Rota inexistente: 404 ROTA_NAO_ENCONTRADA
+GET {{baseUrl}}/api/nao-existe
+
+### Método não suportado: 405 METODO_NAO_PERMITIDO
+DELETE {{baseUrl}}/api/perfil
+Authorization: Bearer {{token}}

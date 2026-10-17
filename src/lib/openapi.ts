@@ -41,7 +41,7 @@ const resultadoConta = {
   economiaMensal: 31.2,
   placas: 6,
   retornoAnos: 2.5,
-  co2EvitadoKgAno: 197.6,
+  co2EvitadoKgAno: 191.2,
   pesos: [],
 };
 
@@ -51,7 +51,7 @@ const resultadoAparelhos = {
   economiaMensal: 24.44,
   placas: 2,
   retornoAnos: 3.6,
-  co2EvitadoKgAno: 65.9,
+  co2EvitadoKgAno: 63.7,
   pesos: [{ aparelho: "Chuveiro elétrico", percentual: 100 }],
 };
 
@@ -80,6 +80,8 @@ export const especificacaoOpenApi = {
     { name: "Catálogos", description: "Listas públicas, sem login." },
     { name: "Perfil", description: "Dados do estudante logado (só primeiro nome, bairro e escola)." },
     { name: "Simulador", description: "Cálculo da conta de luz, economia e energia solar." },
+    { name: "Sol de hoje", description: "Irradiação solar recente em São Luís (NASA POWER)." },
+    { name: "Tutor", description: "Energinho: tutor com IA que responde com base nas lições do app." },
     { name: "Trilhas e quiz", description: "Trilhas, lições, quiz e Pedale e veja." },
     { name: "Missões", description: "Missões de hábitos com registro diário." },
     { name: "Rankings e mapa", description: "Rankings agregados (sem dados individuais) e pontos no mapa." },
@@ -186,6 +188,7 @@ export const especificacaoOpenApi = {
                     primeiro_nome: null,
                     bairro_id: null,
                     escola_id: null,
+                    escola_verificada: false,
                     criado_em: "2026-10-15T12:00:00.000Z",
                     tem_perfil: false,
                     limite_trocas: 3,
@@ -200,6 +203,7 @@ export const especificacaoOpenApi = {
                     primeiro_nome: "Ana",
                     bairro_id: UUID_BAIRRO,
                     escola_id: UUID_ESCOLA,
+                    escola_verificada: true,
                     criado_em: "2026-10-15T12:00:00.000Z",
                     tem_perfil: true,
                     limite_trocas: 3,
@@ -214,6 +218,7 @@ export const especificacaoOpenApi = {
                     primeiro_nome: "Ana",
                     bairro_id: UUID_BAIRRO,
                     escola_id: UUID_ESCOLA,
+                    escola_verificada: true,
                     criado_em: "2026-10-15T12:00:00.000Z",
                     tem_perfil: true,
                     limite_trocas: 3,
@@ -235,6 +240,7 @@ export const especificacaoOpenApi = {
         description:
           [
             "Envie `escola_id` **ou** `codigo_turma` (nunca os dois), ou nenhum deles. O código de turma é convertido para maiúsculas.",
+            "Só quem entra pelo `codigo_turma` fica com `escola_verificada: true` e soma pontos no ranking de escolas. Trocar de escola desfaz a verificação.",
             "",
             "**Limite de trocas:** cada estudante pode trocar de bairro ou de escola **3 vezes a cada 30 dias**.",
             "Definir o bairro ou a escola pela primeira vez, reenviar os mesmos valores ou mudar só o nome não conta.",
@@ -402,6 +408,92 @@ export const especificacaoOpenApi = {
             "Você ainda não fez nenhuma simulação.",
           ),
           "500": { $ref: "#/components/responses/ErroInterno" },
+        },
+      },
+    },
+    "/api/sol-de-hoje": {
+      get: {
+        tags: ["Sol de hoje"],
+        summary: "Quanto uma placa solar gera com o sol mais recente de São Luís",
+        description: [
+          "Usa a irradiação diária da NASA POWER (`ALLSKY_SFC_SW_DWN`, community RE) do dia mais recente com dado",
+          "nos últimos 10 dias, já que os dados chegam com alguns dias de atraso. O servidor consulta a NASA POWER",
+          "no máximo uma vez a cada 6 horas. Se ela falhar, usa o último valor guardado ou, sem ele, a média anual do config.",
+        ].join(" "),
+        operationId: "solDeHoje",
+        security: [],
+        responses: {
+          "200": {
+            description: "Estimativa para uma placa de 550 Wp.",
+            content: json(ref("SolDeHoje"), {
+              example: {
+                data: "2026-10-09",
+                irradiacao: 6.22,
+                kwhPorPlaca: 2.74,
+                horasArCondicionado: 2.7,
+                co2EvitadoKg: 0.105,
+                estimativa: true,
+                fonte: "nasa-power",
+              },
+            }),
+          },
+          "500": { $ref: "#/components/responses/ErroInterno" },
+        },
+      },
+    },
+    "/api/tutor": {
+      post: {
+        tags: ["Tutor"],
+        summary: "Pergunta ao Energinho",
+        description: [
+          "Busca os 4 trechos de lição mais parecidos com a pergunta e responde com o Gemini, só sobre energia,",
+          "conta de luz e sustentabilidade. Limite de 20 mensagens por hora por usuário. O texto das conversas não é gravado:",
+          "para manter o contexto, o front envia as últimas mensagens em `historico`.",
+        ].join(" "),
+        operationId: "perguntarAoTutor",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: json(ref("PerguntaTutor"), {
+            examples: {
+              simples: { summary: "Só a pergunta", value: { mensagem: "Por que o sol de São Luís é tão forte?" } },
+              comHistorico: {
+                summary: "Com histórico",
+                value: {
+                  mensagem: "E quantas placas uma casa precisa?",
+                  historico: [
+                    { papel: "usuario", texto: "Como a placa solar funciona?" },
+                    { papel: "energinho", texto: "A placa transforma a luz do sol em energia elétrica." },
+                  ],
+                },
+              },
+            },
+          }),
+        },
+        responses: {
+          "200": {
+            description: "Resposta do Energinho e lições para aprofundar.",
+            content: json(ref("RespostaTutor"), {
+              example: {
+                resposta:
+                  "São Luís fica pertinho da linha do Equador, então o sol passa bem alto o ano todo. Para saber mais, veja a lição: O sol de São Luís",
+                licoesRelacionadas: [{ id: UUID_LICAO, titulo: "O sol de São Luís", trilhaSlug: "energia-solar-em-sao-luis" }],
+              },
+            }),
+          },
+          "400": respostaErro("Mensagem vazia, longa demais ou histórico inválido.", "ENTRADA_INVALIDA", "mensagem: A mensagem pode ter até 500 caracteres."),
+          "401": { $ref: "#/components/responses/NaoAutenticado" },
+          "429": respostaErro(
+            "Limite de 20 mensagens por hora atingido.",
+            "LIMITE_TUTOR",
+            "Você já mandou 20 mensagens ao Energinho na última hora. Tente de novo a partir das 13:30.",
+          ),
+          "500": { $ref: "#/components/responses/ErroInterno" },
+          "503": respostaErro(
+            "O serviço de IA não respondeu.",
+            "TUTOR_INDISPONIVEL",
+            "O Energinho está descansando agora. Tente de novo em alguns minutos.",
+          ),
         },
       },
     },
@@ -586,8 +678,9 @@ export const especificacaoOpenApi = {
           "- a **primeira tentativa** vale pontos se estiver certa;",
           "- depois de um erro, uma nova tentativa só vale pontos **24 h depois** (`proximaTentativaEm`);",
           "- depois de acertar, a pergunta não pontua mais;",
-          "- fora dessas janelas o estudante pode responder para treinar: recebe `correta` e `explicacao`,",
-          "  mas `tentativaPontuavel` vem `false` e nada muda no registro.",
+          "- a `explicacao` só vem quando a resposta está certa; numa resposta errada ela vem `null`;",
+          "- enquanto a nova tentativa não é liberada, a API responde `429 AGUARDE_NOVA_TENTATIVA` sem corrigir a",
+          "  resposta, para que o gabarito não possa ser descoberto testando as opções.",
         ].join("\n"),
         operationId: "responderQuiz",
         security: [{ bearerAuth: [] }],
@@ -619,7 +712,7 @@ export const especificacaoOpenApi = {
                   summary: "Errou: nova tentativa que pontua em 24 h",
                   value: {
                     correta: false,
-                    explicacao: "Perto do Equador o sol chega mais 'em pé' o ano todo.",
+                    explicacao: null,
                     tentativaPontuavel: true,
                     proximaTentativaEm: "2026-10-17T12:00:00.000Z",
                     pontosGanhos: 0,
@@ -632,6 +725,11 @@ export const especificacaoOpenApi = {
           "400": respostaErro("Dados inválidos.", "ENTRADA_INVALIDA", "opcao: Escolha uma das opções da pergunta."),
           "401": { $ref: "#/components/responses/NaoAutenticado" },
           "404": respostaErro("Pergunta não encontrada.", "PERGUNTA_NAO_ENCONTRADA", "Pergunta não encontrada."),
+          "429": respostaErro(
+            "A nova tentativa ainda não foi liberada.",
+            "AGUARDE_NOVA_TENTATIVA",
+            "Você já respondeu esta pergunta. Uma nova tentativa será liberada em 17/10 às 09:00.",
+          ),
           "500": { $ref: "#/components/responses/ErroInterno" },
         },
       },
@@ -742,6 +840,7 @@ export const especificacaoOpenApi = {
         description: [
           "Soma dos pontos dos estudantes de cada bairro ou escola, sem nenhum dado individual.",
           "Os pontos acompanham o bairro e a escola **atuais** do estudante. Empates dividem a posição.",
+          "No ranking de escolas, só contam os estudantes que entraram pelo código de turma (`escola_verificada`).",
           "Só aparecem bairros e escolas com **pelo menos 1 ponto**: enquanto ninguém pontuar, a lista vem vazia.",
         ].join("\n"),
         operationId: "listarRanking",
@@ -946,6 +1045,7 @@ export const especificacaoOpenApi = {
           "primeiro_nome",
           "bairro_id",
           "escola_id",
+          "escola_verificada",
           "criado_em",
           "tem_perfil",
           "limite_trocas",
@@ -957,6 +1057,11 @@ export const especificacaoOpenApi = {
           primeiro_nome: { type: ["string", "null"] },
           bairro_id: { type: ["string", "null"], format: "uuid" },
           escola_id: { type: ["string", "null"], format: "uuid" },
+          escola_verificada: {
+            type: "boolean",
+            description:
+              "`true` quando o estudante entrou na escola pelo `codigo_turma`. Só esses estudantes somam pontos no ranking de escolas.",
+          },
           criado_em: { type: "string", format: "date-time" },
           tem_perfil: { type: "boolean", description: "`true` quando o primeiro nome já foi informado." },
           limite_trocas: { type: "integer", description: "Trocas de bairro ou escola permitidas a cada 30 dias." },
@@ -1039,6 +1144,73 @@ export const especificacaoOpenApi = {
         properties: {
           aparelho: { type: "string", description: "Nome do aparelho." },
           percentual: { type: "number", description: "Participação no consumo, com 1 casa decimal." },
+        },
+      },
+      PerguntaTutor: {
+        type: "object",
+        required: ["mensagem"],
+        additionalProperties: false,
+        properties: {
+          mensagem: { type: "string", minLength: 1, maxLength: 500 },
+          historico: {
+            type: "array",
+            maxItems: 10,
+            description: "Últimas mensagens da conversa, da mais antiga para a mais nova.",
+            items: {
+              type: "object",
+              required: ["papel", "texto"],
+              additionalProperties: false,
+              properties: {
+                papel: { type: "string", enum: ["usuario", "energinho"] },
+                texto: { type: "string", minLength: 1, maxLength: 1000 },
+              },
+            },
+          },
+        },
+      },
+      RespostaTutor: {
+        type: "object",
+        required: ["resposta", "licoesRelacionadas"],
+        properties: {
+          resposta: { type: "string", maxLength: 1500, description: "Texto do Energinho (até 1.500 caracteres)." },
+          licoesRelacionadas: {
+            type: "array",
+            description: "Lições usadas na resposta, da mais parecida para a menos. Pode vir vazia.",
+            items: {
+              type: "object",
+              required: ["id", "titulo", "trilhaSlug"],
+              properties: {
+                id: { type: "string", format: "uuid" },
+                titulo: { type: "string" },
+                trilhaSlug: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+      SolDeHoje: {
+        type: "object",
+        required: ["data", "irradiacao", "kwhPorPlaca", "horasArCondicionado", "co2EvitadoKg", "estimativa", "fonte"],
+        properties: {
+          data: {
+            type: ["string", "null"],
+            format: "date",
+            description: "Dia da medição (fuso de São Luís). `null` quando o valor é a média anual do config.",
+          },
+          irradiacao: { type: "number", description: "Irradiação no plano horizontal, em kWh/m²/dia (2 casas)." },
+          kwhPorPlaca: { type: "number", description: "Energia gerada por uma placa de 550 Wp no dia, em kWh (2 casas)." },
+          horasArCondicionado: {
+            type: "number",
+            description: "Horas de ar-condicionado (potência do catálogo) que essa energia alimenta (1 casa).",
+          },
+          co2EvitadoKg: { type: "number", description: "CO₂ evitado por essa placa no dia, em kg (3 casas)." },
+          estimativa: { type: "boolean", const: true },
+          fonte: {
+            type: "string",
+            enum: ["nasa-power", "cache", "config"],
+            description:
+              "`nasa-power`: consultada agora; `cache`: último valor guardado da NASA POWER; `config`: média anual de reserva.",
+          },
         },
       },
       ResultadoSimulacao: {
@@ -1219,7 +1391,7 @@ export const especificacaoOpenApi = {
             required: ["correta", "explicacao", "tentativaPontuavel", "proximaTentativaEm"],
             properties: {
               correta: { type: "boolean" },
-              explicacao: { type: "string" },
+              explicacao: { type: ["string", "null"], description: "Só vem quando a resposta está certa." },
               tentativaPontuavel: { type: "boolean", description: "Se esta resposta foi a que vale pontos." },
               proximaTentativaEm: { type: ["string", "null"], format: "date-time" },
             },

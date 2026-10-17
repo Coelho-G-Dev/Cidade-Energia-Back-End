@@ -45,7 +45,8 @@ describe("origemPermitida", () => {
 describe("proxy (CORS das rotas /api)", () => {
   const original = process.env.CORS_ORIGENS;
   afterEach(() => {
-    process.env.CORS_ORIGENS = original;
+    if (original === undefined) delete process.env.CORS_ORIGENS;
+    else process.env.CORS_ORIGENS = original;
   });
 
   const req = (metodo: string, origem?: string) =>
@@ -73,5 +74,50 @@ describe("proxy (CORS das rotas /api)", () => {
   it("não libera origem fora da lista", () => {
     process.env.CORS_ORIGENS = "http://localhost:5173";
     expect(proxy(req("GET", "https://site-estranho.com")).headers.get("access-control-allow-origin")).toBeNull();
+  });
+});
+
+describe("proxy (rotas e métodos)", () => {
+  const chamar = (metodo: string, caminho: string) =>
+    proxy(new NextRequest(`http://localhost:3000${caminho}`, { method: metodo, headers: { origin: "http://localhost:5173" } }));
+
+  it.each([
+    ["GET", "/api/bairros"],
+    ["HEAD", "/api/bairros"],
+    ["GET", "/api/licoes/3f2c1a9e-4b7d-4c1e-9a3f-1d2b3c4d5e6f/quiz"],
+    ["POST", "/api/missoes/abc/registrar"],
+    ["PUT", "/api/perfil"],
+    ["POST", "/api/tutor"],
+    ["GET", "/api/sol-de-hoje"],
+    ["GET", "/api/docs"],
+    ["GET", "/api/trilhas/"],
+  ])("deixa passar %s %s", (metodo, caminho) => {
+    expect(chamar(metodo, caminho).headers.get("x-middleware-next")).toBe("1");
+  });
+
+  it("rota inexistente responde 404 em JSON com CORS", async () => {
+    const r = chamar("GET", "/api/nao-existe");
+    expect(r.status).toBe(404);
+    expect(await r.json()).toEqual({ erro: { codigo: "ROTA_NAO_ENCONTRADA", mensagem: "Esta rota da API não existe." } });
+    expect(r.headers.get("access-control-allow-origin")).toBe("http://localhost:5173");
+  });
+
+  it("subcaminho desconhecido de rota com parâmetro responde 404", () => {
+    expect(chamar("GET", "/api/licoes/abc/outra-coisa").status).toBe(404);
+  });
+
+  it("método não suportado responde 405 em JSON com o cabeçalho Allow", async () => {
+    const r = chamar("DELETE", "/api/perfil");
+    expect(r.status).toBe(405);
+    expect(r.headers.get("allow")).toBe("GET, PUT, HEAD, OPTIONS");
+    expect(await r.json()).toEqual({
+      erro: { codigo: "METODO_NAO_PERMITIDO", mensagem: "Esta rota aceita só GET, PUT." },
+    });
+  });
+
+  it("GET numa rota só de POST responde 405", () => {
+    const r = chamar("GET", "/api/tutor");
+    expect(r.status).toBe(405);
+    expect(r.headers.get("allow")).toBe("POST, OPTIONS");
   });
 });

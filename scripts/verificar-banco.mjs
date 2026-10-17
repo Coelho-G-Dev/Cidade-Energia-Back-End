@@ -90,6 +90,16 @@ async function verificarBanco() {
     .eq("id", A.id)
     .select();
   checar("A atualiza o próprio perfil", atualiza.data?.length === 1, atualiza.error?.message);
+  checar("escola escolhida direto fica sem verificação", atualiza.data?.[0]?.escola_verificada === false);
+  const verificaDireto = await A.cliente.from("perfis").update({ escola_verificada: true }).eq("id", A.id).select();
+  checar("NÃO liga escola_verificada direto", Boolean(verificaDireto.error));
+  const outraTurma = await A.cliente.rpc("confirmar_turma", { p_codigo: "VENTO26" });
+  checar("código de outra escola NÃO verifica", outraTurma.data === false, outraTurma.error?.message);
+  const confirmaAnon = await anon.rpc("confirmar_turma", { p_codigo: "SOL2026" });
+  checar("NÃO confirma turma sem login", Boolean(confirmaAnon.error));
+  const confirma = await A.cliente.rpc("confirmar_turma", { p_codigo: "sol2026" });
+  const verificada = await A.cliente.from("perfis").select("escola_verificada").eq("id", A.id).single();
+  checar("código da própria escola verifica", confirma.data === true && verificada.data?.escola_verificada === true, confirma.error?.message);
 
   const tv = aparelhos.data.find((a) => a.codigo === "tv");
   const sim = await A.cliente.rpc("salvar_simulacao", {
@@ -159,7 +169,7 @@ async function verificarRotas({ A, B, bairroId }) {
     token: B.token,
     body: { primeiro_nome: "Bia", bairro_id: bairroId, codigo_turma: "vento26" },
   });
-  checar("PUT /api/perfil com codigo_turma → 200", comTurma.status === 200 && comTurma.corpo.tem_perfil && comTurma.corpo.escola_id);
+  checar("PUT /api/perfil com codigo_turma → 200 e escola verificada", comTurma.status === 200 && comTurma.corpo.tem_perfil && comTurma.corpo.escola_id && comTurma.corpo.escola_verificada === true);
   const turmaRuim = await chamar("PUT", "/api/perfil", {
     token: B.token,
     body: { primeiro_nome: "Bia", bairro_id: bairroId, codigo_turma: "ZZZZ99" },
@@ -299,9 +309,9 @@ async function verificarRotasDia2({ A, B }) {
   checar("ranking não muda com a repetição", (await pontosEscola()) === escolaDepois);
 
   const errada = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p2.id, opcao: (gabarito.get(p2.id) + 1) % p2.opcoes.length } });
-  checar("resposta errada → explicação e nova tentativa em 24 h", errada.status === 200 && !errada.corpo.correta && errada.corpo.explicacao && errada.corpo.proximaTentativaEm);
+  checar("resposta errada → sem explicação e nova tentativa em 24 h", errada.status === 200 && !errada.corpo.correta && errada.corpo.explicacao === null && errada.corpo.proximaTentativaEm);
   const corrigida = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p2.id, opcao: gabarito.get(p2.id) } });
-  checar("acertar logo depois de errar NÃO pontua", corrigida.status === 200 && corrigida.corpo.correta && corrigida.corpo.pontosGanhos === 0 && !corrigida.corpo.tentativaPontuavel);
+  checar("responder logo depois de errar → 429 sem revelar a correção", corrigida.status === 429 && corrigida.corpo.erro?.codigo === "AGUARDE_NOVA_TENTATIVA" && !("correta" in corrigida.corpo), JSON.stringify(corrigida.corpo));
   const foraDaLista = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p1.id, opcao: 4 } });
   checar("opção fora da lista → 400", foraDaLista.status === 400);
 
@@ -432,13 +442,174 @@ async function verificarTrocasECors({ A, B }) {
   checar("CORS: origem fora da lista não é liberada", !estranha.cabecalhos.get("access-control-allow-origin"));
 }
 
+async function verificarBancoDia3({ A, B }) {
+  const anon = novoCliente();
+
+  console.log("\n— Dia 3: cache da irradiação, RAG e uso do tutor");
+  for (const tabela of ["cache_irradiacao", "documentos_rag"]) {
+    const lidoAnon = await anon.from(tabela).select("*");
+    checar(`anon NÃO lê ${tabela}`, Boolean(lidoAnon.error) || lidoAnon.data.length === 0);
+    const lidoA = await A.cliente.from(tabela).select("*");
+    checar(`A NÃO lê ${tabela}`, Boolean(lidoA.error) || lidoA.data.length === 0);
+  }
+  checar(
+    "A NÃO grava no cache da irradiação",
+    Boolean((await A.cliente.from("cache_irradiacao").upsert({ tipo: "diaria", data: "2026-01-01", valor: 9 })).error),
+  );
+  const vetor = `[${Array(768).fill(0.01).join(",")}]`;
+  checar("A NÃO executa match_documentos", Boolean((await A.cliente.rpc("match_documentos", { p_embedding: vetor, p_k: 4 })).error));
+  checar(
+    "A NÃO executa registrar_uso_tutor",
+    Boolean((await A.cliente.rpc("registrar_uso_tutor", { p_perfil_id: A.id, p_limite: 1000, p_janela: "1 hour" })).error),
+  );
+  checar("A NÃO insere em tutor_uso", Boolean((await A.cliente.from("tutor_uso").insert({ perfil_id: A.id })).error));
+
+  const indexados = await admin.from("documentos_rag").select("id", { count: "exact", head: true });
+  checar(`documentos_rag indexado (${indexados.count ?? 0} trechos)`, !indexados.error && indexados.count > 0, indexados.error?.message);
+  const busca = await admin.rpc("match_documentos", { p_embedding: vetor, p_k: 4 });
+  checar("match_documentos devolve até 4 trechos", !busca.error && busca.data.length <= 4, busca.error?.message);
+
+  for (const usuario of [A, B]) {
+    await admin.rpc("registrar_uso_tutor", { p_perfil_id: usuario.id, p_limite: 20, p_janela: "1 hour" });
+  }
+  const usosA = await A.cliente.from("tutor_uso").select("perfil_id");
+  checar("A só lê os próprios usos do tutor", !usosA.error && usosA.data.length >= 1 && usosA.data.every((u) => u.perfil_id === A.id));
+  const usosB = await B.cliente.from("tutor_uso").select("perfil_id");
+  checar("B só lê os próprios usos do tutor", !usosB.error && usosB.data.length >= 1 && usosB.data.every((u) => u.perfil_id === B.id));
+}
+
+async function verificarRotasDia3({ A, B }) {
+  console.log(`\n— Dia 3: Sol de hoje, tutor e erros padronizados (${env.api})`);
+  const chamar = async (metodo, caminho, { token, body } = {}) => {
+    const r = await fetch(`${env.api}${caminho}`, {
+      method: metodo,
+      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const texto = await r.text();
+    return { status: r.status, corpo: texto ? JSON.parse(texto) : null, cabecalhos: r.headers };
+  };
+
+  const sol = await chamar("GET", "/api/sol-de-hoje");
+  checar(
+    `GET /api/sol-de-hoje → estimativa (fonte ${sol.corpo?.fonte}, ${sol.corpo?.data ?? "sem data"}, ${sol.corpo?.irradiacao} kWh/m²)`,
+    sol.status === 200 && sol.corpo.estimativa === true && ["nasa-power", "cache", "config"].includes(sol.corpo.fonte) &&
+      sol.corpo.irradiacao > 0 && sol.corpo.kwhPorPlaca > 0 && sol.corpo.horasArCondicionado > 0 && sol.corpo.co2EvitadoKg > 0 &&
+      (sol.corpo.data === null || /^\d{4}-\d{2}-\d{2}$/.test(sol.corpo.data)),
+    JSON.stringify(sol.corpo),
+  );
+  const sol2 = await chamar("GET", "/api/sol-de-hoje");
+  checar("a 2ª chamada vem do cache", sol2.status === 200 && sol2.corpo.fonte === "cache", JSON.stringify(sol2.corpo));
+
+  const semLogin = await chamar("POST", "/api/tutor", { body: { mensagem: "O que é kWh?" } });
+  checar("POST /api/tutor sem login → 401", semLogin.status === 401 && semLogin.corpo.erro?.codigo === "NAO_AUTENTICADO");
+  const longa = await chamar("POST", "/api/tutor", { token: B.token, body: { mensagem: "a".repeat(501) } });
+  checar("POST /api/tutor com mensagem longa → 400", longa.status === 400 && longa.corpo.erro?.codigo === "ENTRADA_INVALIDA");
+  const tutor = await chamar("POST", "/api/tutor", { token: B.token, body: { mensagem: "O que é kWh?" } });
+  checar(
+    "POST /api/tutor responde e indica a lição relacionada",
+    tutor.status === 200 && typeof tutor.corpo.resposta === "string" && tutor.corpo.resposta.length > 0 &&
+      tutor.corpo.resposta.length <= 1500 && tutor.corpo.licoesRelacionadas.some((l) => l.titulo === "O que é kWh"),
+    JSON.stringify(tutor.corpo),
+  );
+  const foraDoTema = await chamar("POST", "/api/tutor", { token: B.token, body: { mensagem: "Qual a capital da França?" } });
+  checar(
+    "pergunta fora do tema → sem lições relacionadas",
+    foraDoTema.status === 200 && foraDoTema.corpo.licoesRelacionadas.length === 0,
+    JSON.stringify(foraDoTema.corpo),
+  );
+
+  const { count: usados } = await admin.from("tutor_uso").select("id", { count: "exact", head: true }).eq("perfil_id", A.id);
+  for (let i = usados ?? 0; i < 20; i++) {
+    await admin.rpc("registrar_uso_tutor", { p_perfil_id: A.id, p_limite: 20, p_janela: "1 hour" });
+  }
+  const limite = await chamar("POST", "/api/tutor", { token: A.token, body: { mensagem: "O que é kWh?" } });
+  checar(
+    "21ª mensagem na hora → 429 LIMITE_TUTOR",
+    limite.status === 429 && limite.corpo.erro?.codigo === "LIMITE_TUTOR" && /a partir das \d{2}:\d{2}/.test(limite.corpo.erro.mensagem),
+    JSON.stringify(limite.corpo),
+  );
+
+  const inexistente = await chamar("GET", "/api/nao-existe");
+  checar("rota inexistente → 404 ROTA_NAO_ENCONTRADA em JSON", inexistente.status === 404 && inexistente.corpo?.erro?.codigo === "ROTA_NAO_ENCONTRADA");
+  const metodo = await chamar("DELETE", "/api/perfil", { token: A.token });
+  checar(
+    "método não suportado → 405 METODO_NAO_PERMITIDO com Allow",
+    metodo.status === 405 && metodo.corpo?.erro?.codigo === "METODO_NAO_PERMITIDO" && metodo.cabecalhos.get("allow")?.includes("PUT"),
+  );
+}
+
+async function verificarFluxoCompleto() {
+  console.log(`\n— Fluxo completo: simular → concluir lição → quiz → ranking da escola (${env.api})`);
+  const chamar = async (metodo, caminho, { token, body } = {}) => {
+    const r = await fetch(`${env.api}${caminho}`, {
+      method: metodo,
+      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { status: r.status, corpo: await r.json() };
+  };
+
+  const C = await entrarAnonimo();
+  const bairro = (await chamar("GET", "/api/bairros")).corpo[0];
+  const perfil = await chamar("PUT", "/api/perfil", {
+    token: C.token,
+    body: { primeiro_nome: "Caio", bairro_id: bairro.id, codigo_turma: "SOL2026" },
+  });
+  checar("C cria o perfil com a escola da turma", perfil.status === 200 && Boolean(perfil.corpo.escola_id), JSON.stringify(perfil.corpo));
+  const escolaId = perfil.corpo.escola_id;
+  const pontosEscola = async () =>
+    (await chamar("GET", "/api/rankings?tipo=escolas")).corpo.find((e) => e.id === escolaId)?.pontos ?? 0;
+
+  const inicio = await pontosEscola();
+  const sim = await chamar("POST", "/api/simulacoes", { token: C.token, body: { modo: "conta", consumoKwh: 380, valorConta: 312 } });
+  const depoisSim = await pontosEscola();
+  checar(
+    `1. simular → +20 na escola (${inicio} → ${depoisSim})`,
+    sim.status === 200 && sim.corpo.pontosGanhos === 20 && Boolean(sim.corpo.simulacaoId) && depoisSim === inicio + 20,
+    JSON.stringify(sim.corpo),
+  );
+
+  const trilha = await chamar("GET", "/api/trilhas/entendendo-a-sua-conta-de-luz", { token: C.token });
+  const licao = trilha.corpo.licoes.find((l) => l.tipo === "texto");
+  const concluir = await chamar("POST", `/api/licoes/${licao.id}/concluir`, { token: C.token });
+  const depoisLicao = await pontosEscola();
+  checar(
+    `2. concluir "${licao.titulo}" → +10 na escola (${depoisSim} → ${depoisLicao})`,
+    concluir.status === 200 && concluir.corpo.pontosGanhos === 10 && depoisLicao === depoisSim + 10,
+    JSON.stringify(concluir.corpo),
+  );
+
+  const quiz = await chamar("GET", `/api/licoes/${licao.id}/quiz`, { token: C.token });
+  const pergunta = quiz.corpo.perguntas[0];
+  checar("a lição tem quiz", quiz.status === 200 && Boolean(pergunta), JSON.stringify(quiz.corpo));
+  const { data: gabarito } = await admin.from("perguntas").select("indice_correto").eq("id", pergunta.id).single();
+  const resposta = await chamar("POST", "/api/quiz/responder", { token: C.token, body: { perguntaId: pergunta.id, opcao: gabarito.indice_correto } });
+  const depoisQuiz = await pontosEscola();
+  checar(
+    `3. resposta certa → +5 na escola (${depoisLicao} → ${depoisQuiz})`,
+    resposta.status === 200 && resposta.corpo.correta && resposta.corpo.pontosGanhos === 5 && depoisQuiz === depoisLicao + 5,
+    JSON.stringify(resposta.corpo),
+  );
+
+  const resumo = await chamar("GET", "/api/perfil/resumo", { token: C.token });
+  checar(
+    "4. resumo de C: 35 pontos e posição da escola no ranking",
+    resumo.status === 200 && resumo.corpo.pontos === 35 && resumo.corpo.escola?.pontos === depoisQuiz && resumo.corpo.escola?.posicao >= 1,
+    JSON.stringify(resumo.corpo),
+  );
+}
+
 try {
   const contexto = await verificarBanco();
   await verificarBancoDia2(contexto);
+  await verificarBancoDia3(contexto);
   if (env.api) {
     await verificarRotas(contexto);
     await verificarRotasDia2(contexto);
     await verificarTrocasECors(contexto);
+    await verificarRotasDia3(contexto);
+    await verificarFluxoCompleto();
   } else console.log("\n(API_URL não definida: rotas não verificadas)");
 } catch (e) {
   falhas++;

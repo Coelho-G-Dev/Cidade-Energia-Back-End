@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { erroDoBanco } from "@/lib/http/erros";
+import { erroDoBanco, naoEncontrado } from "@/lib/http/erros";
 
 export type Bairro = { id: string; nome: string };
 export type Escola = { id: string; nome: string; bairro_id: string };
@@ -46,6 +46,13 @@ export async function listarAparelhos(supabase: SupabaseClient): Promise<Aparelh
   const { data, error } = await supabase.from("aparelhos").select(colunasAparelho).order("nome");
   if (error) throw erroDoBanco(error);
   return data.map(normalizarAparelho);
+}
+
+export async function buscarAparelhoPorCodigo(supabase: SupabaseClient, codigo: string): Promise<Aparelho> {
+  const { data, error } = await supabase.from("aparelhos").select(colunasAparelho).eq("codigo", codigo).maybeSingle();
+  if (error) throw erroDoBanco(error);
+  if (!data) throw naoEncontrado("APARELHO_NAO_ENCONTRADO", `Aparelho ${codigo} não existe.`);
+  return normalizarAparelho(data);
 }
 
 export async function buscarAparelhos(
