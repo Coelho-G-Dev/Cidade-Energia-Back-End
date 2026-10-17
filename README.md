@@ -5,9 +5,12 @@ API do app educacional **Cidade Energia** (Hackathon Equatorial, Desafio 9).
 
 Feita com Next.js (App Router) e Supabase. Este repositório é **só o backend**; o front-end consome as rotas abaixo.
 
+**Em produção:** `https://cidade-energia-back-end.vercel.app` (deploy automático na Vercel a cada push no `master`).
+
 ## Documentação interativa (Swagger)
 
-Com a API rodando, abra:
+Com a API rodando, abra (ou use os mesmos caminhos na URL de produção, como
+`https://cidade-energia-back-end.vercel.app/api/docs`):
 
 - **http://localhost:3000/api/docs**: Swagger UI com todas as rotas, campos, exemplos e o botão *Try it out*.
 - **http://localhost:3000/api/openapi**: a especificação OpenAPI 3.1 em JSON (serve para gerar tipos ou um cliente).
@@ -49,7 +52,7 @@ Preencha o `.env.local` com as chaves do projeto Supabase (peça a alguém do ba
 `CORS_ORIGENS` aceita vários endereços, por exemplo o front local, o deploy final e os previews da Vercel:
 
 ```bash
-CORS_ORIGENS=http://localhost:5173,https://cidade-energia.vercel.app,https://cidade-energia-*-sua-equipe.vercel.app
+CORS_ORIGENS=http://localhost:3001,http://localhost:5173,https://cidade-energia.vercel.app,https://cidade-energia-*-sua-equipe.vercel.app
 ```
 
 O `*` vale para um trecho do endereço, sem pontos, e serve para as URLs de preview da Vercel (`<projeto>-<hash>-<equipe>.vercel.app`). Termine o padrão com o nome da sua equipe, para não liberar projetos de outras pessoas. A lista é lida a cada requisição, então localmente basta salvar o `.env.local`. Na Vercel, uma variável alterada só vale para os deploys novos: depois de mudar, use **Redeploy** no último deploy (não precisa de commit novo).
@@ -127,7 +130,7 @@ Copie o `access_token` da resposta e cole em **Authorize** no Swagger. Ele vale 
 | GET | `/api/perfil` | sim | Perfil do usuário logado (`tem_perfil` diz se já tem nome) |
 | PUT | `/api/perfil` | sim | Cria ou atualiza o perfil |
 | POST | `/api/simulacoes` | opcional | Simula a conta. Com login, salva a simulação |
-| POST | `/api/simulacoes/previa` | não | Mesmo cálculo, sem salvar (estimativa ao vivo) |
+| POST | `/api/simulacoes/previa` | opcional | Mesmo cálculo, sem salvar nem pontuar (estimativa ao vivo) |
 | GET | `/api/simulacoes/ultima` | sim | Última simulação salva do usuário |
 | GET | `/api/trilhas` | opcional | Lista as trilhas com o progresso do usuário |
 | GET | `/api/trilhas/<slug>` | opcional | Trilha com a lista de lições |
@@ -223,6 +226,20 @@ Use os `id`s de `GET /api/aparelhos` e o campo `horas_padrao` para pré-preenche
 
 Os números já vêm arredondados para exibir: R$ com 2 casas, o resto com 1. Todos são **estimativas didáticas**; mostre isso na tela.
 
+### Prévia ao vivo
+
+Para a estimativa que muda a cada + ou −, use `POST /api/simulacoes/previa`, com o mesmo corpo e a mesma resposta.
+Ela **nunca salva** nem pontua, mesmo com token. Quando o estudante tocar em "Ver meu resultado", chame
+`POST /api/simulacoes` com token para salvar.
+
+Limite de uso (`429 LIMITE_DE_REQUISICOES`):
+
+- com token válido, a prévia conta por perfil: **120 a cada 10 minutos**;
+- sem token, a prévia e o `POST /api/simulacoes` sem login dividem **600 por minuto por endereço de rede**. O teto é
+  alto porque uma escola inteira pode sair pelo mesmo endereço. O banco guarda só um hash do endereço, nunca o IP.
+
+Espere uns 400 ms depois do último toque antes de chamar a prévia.
+
 ## Trilhas, quiz e Pedale e veja
 
 Fluxo sugerido de uma trilha:
@@ -257,13 +274,16 @@ Quem já tinha concluído fora de ordem mantém o progresso, os pontos e as conq
 - Enquanto a nova tentativa não é liberada, a API responde `429 AGUARDE_NOVA_TENTATIVA` e não corrige a resposta. Assim o gabarito não pode ser descoberto testando as opções. Use `podePontuar` e `proximaTentativaEm` do `GET /api/licoes/<id>/quiz` para desabilitar o botão.
 - Depois de acertar, o estudante pode responder de novo, mas não ganha pontos.
 - Use `podePontuar` e `proximaTentativaEm` do `GET .../quiz` para mostrar isso na tela.
+- `licaoConcluida` no `GET .../quiz` diz se a lição já foi concluída. Enquanto for `false`, todas as perguntas vêm
+  com `podePontuar: false`.
 
 ## Missões
 
 `GET /api/missoes` lista as missões. Cada dia em que o estudante cumpre a missão, o front chama `POST /api/missoes/<id>/registrar`:
 
 - vale **um registro por dia** (fuso de São Luís); chamar de novo no mesmo dia devolve `novoRegistro: false`;
-- `diasMarcados` traz as datas já registradas (`AAAA-MM-DD`), para desenhar cada noite marcada;
+- `diasMarcados` traz as datas já registradas (`AAAA-MM-DD`, em ordem), para desenhar cada noite marcada. Vem no
+  `GET /api/missoes` e também na resposta do registro, já com o dia de hoje;
 - `trilhaSlug` liga a missão à trilha dela, para levar à missão prática no fim da trilha;
 - quando `diasRegistrados` chega a `diasNecessarios`, a missão pontua uma vez só.
 
@@ -344,6 +364,7 @@ Authorization: Bearer <token>
   - a `resposta`, até 1.500;
   - cada estudante pode mandar **20 mensagens por hora**. Acima disso, vem `429 LIMITE_TUTOR`, com o horário de liberação na mensagem.
 - `licoesRelacionadas` pode vir vazia (por exemplo, numa pergunta fora do tema). Use `id` para abrir a lição.
+- A `resposta` não cita títulos de lições: mostre `licoesRelacionadas` como links logo abaixo dela.
 
 ## Erros
 
@@ -374,9 +395,12 @@ A `mensagem` está em português e pode ser mostrada ao usuário. Use o `codigo`
 | 404 | `MISSAO_NAO_ENCONTRADA` | Missão não existe |
 | 404 | `ROTA_NAO_ENCONTRADA` | A rota não existe |
 | 405 | `METODO_NAO_PERMITIDO` | A rota existe, mas não aceita esse método (veja o cabeçalho `Allow`) |
+| 409 | `LICAO_BLOQUEADA` | Tentou concluir uma lição antes das anteriores da trilha (a mensagem diz qual falta) |
+| 409 | `LICAO_NAO_CONCLUIDA` | Tentou responder o quiz antes de concluir a lição |
 | 429 | `LIMITE_DE_TROCAS` | Já trocou de bairro ou escola 3 vezes nos últimos 30 dias |
 | 429 | `AGUARDE_NOVA_TENTATIVA` | Errou a pergunta e as 24 h para a nova tentativa ainda não passaram |
 | 429 | `LIMITE_TUTOR` | Já mandou 20 mensagens ao tutor na última hora |
+| 429 | `LIMITE_DE_REQUISICOES` | Muitas simulações seguidas (prévia ou simulação sem login): espere um pouco |
 | 500 | `ERRO_INTERNO` | Erro inesperado: tente de novo |
 | 503 | `TUTOR_INDISPONIVEL` | O serviço de IA não respondeu: tente de novo em alguns minutos |
 
@@ -401,9 +425,15 @@ O conteúdo das trilhas (5 trilhas, 18 lições, 20 perguntas) e as 2 missões f
 | `npm run indexar -- --simular` | Só mostra os trechos, sem chamar o Gemini nem gravar no banco |
 | `npm run verificar:banco` | Confere o banco e as permissões no Supabase real. Com `API_URL` definida, testa também as rotas e o fluxo completo. Cria usuários anônimos de teste e apaga todos no fim |
 | `npx supabase migration new <nome>` | Cria uma migration |
-| `npx supabase db push` | Aplica as migrations no projeto ligado (`--include-seed` para os seeds) |
+| `npx supabase db push` | Aplica as migrations no projeto ligado (`--include-seed` para os seeds novos) |
+| `npx supabase db query --linked -f supabase/seeds/conteudo.sql` | Reaplica o conteúdo das trilhas depois de editá-lo |
 
-**Sempre que o conteúdo das lições mudar**, rode `npm run indexar` de novo para o tutor usar o texto novo.
+**Sempre que o conteúdo das lições mudar:**
+
+1. Reaplique o seed com `npx supabase db query --linked -f supabase/seeds/conteudo.sql`. O `db push --include-seed`
+   **não** reexecuta um seed que já foi aplicado: ele só atualiza o hash e deixa o texto antigo no banco. O seed só faz
+   upserts, então os ids, o progresso e os pontos de quem já usou o app continuam valendo.
+2. Rode `npm run indexar` para o tutor usar o texto novo.
 
 ## Estrutura
 
@@ -428,6 +458,11 @@ tests/                 testes Vitest
 - **RLS em todas as tabelas.** O cliente só lê os próprios dados. Pontos, respostas, progresso, cache e uso do tutor são gravados só pelo servidor, com o `perfil_id` tirado do token.
 - **Pontos sem duplicidade:** a tabela `pontos_eventos` é única por (perfil, origem, referência). O cliente nunca envia pontos.
 - **Rankings** saem de views agregadas, sem dados individuais, e só mostram quem tem pelo menos 1 ponto.
+- **Lições na ordem:** concluir uma lição exige as anteriores da trilha, e o quiz exige a lição concluída. Ler
+  continua livre. Assim não dá para juntar pontos pulando a leitura.
+- **Limite nas simulações:** fica no banco (`consumir_limite_publico`), porque cada chamada na Vercel pode rodar numa
+  instância diferente. A chave é um HMAC do IP ou o ID do perfil. Se o banco falhar, a rota segue sem limite e
+  registra o erro.
 - **Estimativas:** todas as constantes do simulador ficam em `src/lib/config.ts`, com a fonte em `FONTES`. A tarifa padrão é a B1 da Equatorial Maranhão sem tributos (R$ 0,8888/kWh).
 - **NASA POWER:**
   - a irradiação diária fica em cache por 6 horas, e a climatologia, por 30 dias;

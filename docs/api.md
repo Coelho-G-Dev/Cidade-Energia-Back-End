@@ -22,7 +22,7 @@ Referência de todas as rotas, com um exemplo de requisição e de resposta. A e
 | PUT | [`/api/perfil`](#put-apiperfil) | sim |
 | GET | [`/api/perfil/resumo`](#get-apiperfilresumo) | sim |
 | POST | [`/api/simulacoes`](#post-apisimulacoes) | opcional |
-| POST | [`/api/simulacoes/previa`](#post-apisimulacoesprevia) | não |
+| POST | [`/api/simulacoes/previa`](#post-apisimulacoesprevia) | opcional |
 | GET | [`/api/simulacoes/ultima`](#get-apisimulacoesultima) | sim |
 | GET | [`/api/sol-de-hoje`](#get-apisol-de-hoje) | não |
 | POST | [`/api/tutor`](#post-apitutor) | sim |
