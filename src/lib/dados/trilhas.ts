@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { registrarEvento, type ResultadoEvento } from "@/lib/dados/pontos";
+import { licaoPendenteAntes, type LicaoPendente } from "@/lib/gamificacao/regras";
 import { ErroApi, erroDoBanco, naoEncontrado } from "@/lib/http/erros";
 
 type TipoLicao = "texto" | "pedale";
@@ -15,7 +16,7 @@ export type ResumoTrilha = Omit<LinhaTrilha, "id"> & {
 };
 
 export type TrilhaDetalhada = ResumoTrilha & {
-  licoes: { id: string; ordem: number; titulo: string; tipo: TipoLicao; concluida: boolean }[];
+  licoes: { id: string; ordem: number; titulo: string; tipo: TipoLicao; concluida: boolean; liberada: boolean }[];
 };
 
 export type LicaoDetalhada = {
@@ -27,6 +28,8 @@ export type LicaoDetalhada = {
   tipo: TipoLicao;
   totalPerguntas: number;
   concluida: boolean;
+  liberada: boolean;
+  licaoPendente: LicaoPendente | null;
   proximaLicaoId: string | null;
 };
 
@@ -88,6 +91,7 @@ export async function obterTrilha(
       titulo: l.titulo,
       tipo: l.tipo,
       concluida: concluidas.has(l.id),
+      liberada: licaoPendenteAntes(linhas, l, concluidas) === null,
     })),
   };
 }
@@ -107,13 +111,15 @@ export async function obterLicao(
 
   const [trilha, irmas, perguntas, concluidas] = await Promise.all([
     supabase.from("trilhas").select("slug, titulo").eq("id", licao.trilha_id).single(),
-    supabase.from("licoes").select("id, ordem").eq("trilha_id", licao.trilha_id).order("ordem"),
+    supabase.from("licoes").select("id, ordem, titulo").eq("trilha_id", licao.trilha_id).order("ordem"),
     supabase.from("perguntas").select("id", { count: "exact", head: true }).eq("licao_id", licaoId),
     licoesConcluidas(supabase, perfilId),
   ]);
   for (const r of [trilha, irmas, perguntas]) if (r.error) throw erroDoBanco(r.error);
 
-  const proxima = (irmas.data as { id: string; ordem: number }[]).find((l) => l.ordem > licao.ordem);
+  const licoesDaTrilha = irmas.data as { id: string; ordem: number; titulo: string }[];
+  const proxima = licoesDaTrilha.find((l) => l.ordem > licao.ordem);
+  const pendente = licaoPendenteAntes(licoesDaTrilha, licao, concluidas);
 
   return {
     id: licao.id,
@@ -124,6 +130,8 @@ export async function obterLicao(
     tipo: licao.tipo,
     totalPerguntas: perguntas.count ?? 0,
     concluida: concluidas.has(licao.id),
+    liberada: pendente === null,
+    licaoPendente: pendente,
     proximaLicaoId: proxima?.id ?? null,
   };
 }
@@ -136,7 +144,11 @@ export async function concluirLicao(
   licaoId: string,
   tipoEsperado: TipoLicao,
 ): Promise<LicaoConcluida> {
-  const { data: licao, error } = await admin.from("licoes").select("id, tipo").eq("id", licaoId).maybeSingle();
+  const { data: licao, error } = await admin
+    .from("licoes")
+    .select("id, trilha_id, ordem, tipo")
+    .eq("id", licaoId)
+    .maybeSingle();
   if (error) throw erroDoBanco(error);
   if (!licao) throw naoEncontrado("LICAO_NAO_ENCONTRADA", "Lição não encontrada.");
 
@@ -145,6 +157,14 @@ export async function concluirLicao(
       ? new ErroApi(400, "LICAO_E_PEDALE", "Esta lição é do Pedale e veja: conclua pelo POST /api/pedale/concluir.")
       : new ErroApi(400, "LICAO_NAO_E_PEDALE", "Esta lição não é do Pedale e veja.");
   }
+
+  const [irmas, concluidas] = await Promise.all([
+    admin.from("licoes").select("id, ordem, titulo").eq("trilha_id", licao.trilha_id).order("ordem"),
+    licoesConcluidas(admin, perfilId),
+  ]);
+  if (irmas.error) throw erroDoBanco(irmas.error);
+  const pendente = licaoPendenteAntes(irmas.data as { id: string; ordem: number; titulo: string }[], licao, concluidas);
+  if (pendente) throw new ErroApi(409, "LICAO_BLOQUEADA", `Conclua antes a lição "${pendente.titulo}".`);
 
   const progresso = await admin
     .from("progresso_licoes")

@@ -3,6 +3,7 @@ import {
   avaliarTentativa,
   conquistasMerecidas,
   diaEmSaoLuis,
+  licaoPendenteAntes,
   missaoCompleta,
   trilhasConcluidas,
   type RetratoUsuario,
@@ -91,5 +92,31 @@ describe("missaoCompleta", () => {
   it("completa ao atingir os dias necessários", () => {
     expect(missaoCompleta(2, 3)).toBe(false);
     expect(missaoCompleta(3, 3)).toBe(true);
+  });
+});
+
+describe("licaoPendenteAntes", () => {
+  const trilha = [
+    { id: "l3", ordem: 3, titulo: "Pedale e veja" },
+    { id: "l1", ordem: 1, titulo: "O sol de São Luís" },
+    { id: "l2", ordem: 2, titulo: "Como a placa solar funciona" },
+  ];
+  const licao = (ordem: number) => trilha.find((l) => l.ordem === ordem)!;
+
+  it("a primeira lição está sempre liberada", () => {
+    expect(licaoPendenteAntes(trilha, licao(1), new Set())).toBeNull();
+  });
+
+  it("aponta a primeira lição anterior não concluída, pela ordem", () => {
+    expect(licaoPendenteAntes(trilha, licao(3), new Set())).toEqual({ id: "l1", titulo: "O sol de São Luís" });
+    expect(licaoPendenteAntes(trilha, licao(3), new Set(["l1"]))).toEqual({ id: "l2", titulo: "Como a placa solar funciona" });
+  });
+
+  it("libera quando todas as anteriores estão concluídas", () => {
+    expect(licaoPendenteAntes(trilha, licao(3), new Set(["l1", "l2"]))).toBeNull();
+  });
+
+  it("lição já concluída fora de ordem continua liberada", () => {
+    expect(licaoPendenteAntes(trilha, licao(3), new Set(["l3"]))).toBeNull();
   });
 });

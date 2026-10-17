@@ -22,6 +22,7 @@ Referência de todas as rotas, com um exemplo de requisição e de resposta. A e
 | PUT | [`/api/perfil`](#put-apiperfil) | sim |
 | GET | [`/api/perfil/resumo`](#get-apiperfilresumo) | sim |
 | POST | [`/api/simulacoes`](#post-apisimulacoes) | opcional |
+| POST | [`/api/simulacoes/previa`](#post-apisimulacoesprevia) | não |
 | GET | [`/api/simulacoes/ultima`](#get-apisimulacoesultima) | sim |
 | GET | [`/api/sol-de-hoje`](#get-apisol-de-hoje) | não |
 | POST | [`/api/tutor`](#post-apitutor) | sim |
@@ -200,6 +201,7 @@ Erros: `401 NAO_AUTENTICADO`, `404 PERFIL_NAO_ENCONTRADO`.
 ### POST /api/simulacoes
 
 Simula a conta de luz. Com login, salva a simulação, e a primeira vale 20 pontos. Todos os valores são estimativas.
+Para a estimativa ao vivo (a cada + ou −), use [`POST /api/simulacoes/previa`](#post-apisimulacoesprevia), que nunca salva.
 
 Modo conta (`valorConta` é opcional; sem ele, a API usa a tarifa padrão):
 
@@ -253,7 +255,27 @@ Content-Type: application/json
 }
 ```
 
-Erros: `400 ENTRADA_INVALIDA`, `400 JSON_INVALIDO`, `404 APARELHO_NAO_ENCONTRADO`.
+Erros: `400 ENTRADA_INVALIDA`, `400 JSON_INVALIDO`, `404 APARELHO_NAO_ENCONTRADO`, `429 LIMITE_DE_REQUISICOES` (só sem login).
+
+### POST /api/simulacoes/previa
+
+Mesmo corpo e mesma resposta de `POST /api/simulacoes`, mas **nunca salva** e não pontua, mesmo com token.
+Serve para a estimativa ao vivo do simulador. Quando o estudante tocar em "Ver meu resultado", use
+`POST /api/simulacoes` com token para salvar.
+
+```http
+POST /api/simulacoes/previa
+Content-Type: application/json
+
+{ "modo": "conta", "consumoKwh": 380, "valorConta": 312 }
+```
+
+A resposta é igual à do modo conta sem login acima (`simulacaoId: null`, `pontosGanhos: 0`).
+
+**Limite:** esta rota e `POST /api/simulacoes` sem login dividem um limite de 600 chamadas por minuto por endereço
+de rede (uma escola inteira pode sair pelo mesmo endereço). O endereço não é guardado: o banco recebe só um hash.
+
+Erros: `400 ENTRADA_INVALIDA`, `400 JSON_INVALIDO`, `404 APARELHO_NAO_ENCONTRADO`, `429 LIMITE_DE_REQUISICOES`.
 
 ### GET /api/simulacoes/ultima
 
@@ -350,7 +372,7 @@ Content-Type: application/json
 
 ```json
 {
-  "resposta": "Depende de quanto a sua casa gasta por mês... Para saber mais, veja a lição: Quantas placas para a minha casa?",
+  "resposta": "Depende de quanto a sua casa gasta por mês...",
   "licoesRelacionadas": [
     { "id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70", "titulo": "Quantas placas para a minha casa?", "trilhaSlug": "energia-solar-em-sao-luis" }
   ]
@@ -399,6 +421,10 @@ Authorization: Bearer <token>
 
 Trilha com a lista de lições.
 
+As lições são concluídas **na ordem**. `liberada` é `true` quando todas as lições anteriores da trilha estão
+concluídas; a primeira está sempre liberada, e uma lição já concluída continua liberada. Sem login, só a primeira
+aparece liberada.
+
 ```http
 GET /api/trilhas/energia-solar-em-sao-luis
 ```
@@ -415,8 +441,8 @@ GET /api/trilhas/energia-solar-em-sao-luis
   "licoesConcluidas": 1,
   "concluida": false,
   "licoes": [
-    { "id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70", "ordem": 1, "titulo": "O sol de São Luís", "tipo": "texto", "concluida": true },
-    { "id": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7081", "ordem": 2, "titulo": "Pedale e veja", "tipo": "pedale", "concluida": false }
+    { "id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70", "ordem": 1, "titulo": "O sol de São Luís", "tipo": "texto", "concluida": true, "liberada": true },
+    { "id": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7081", "ordem": 2, "titulo": "Pedale e veja", "tipo": "pedale", "concluida": false, "liberada": true }
   ]
 }
 ```
@@ -425,7 +451,10 @@ Erros: `400 ENTRADA_INVALIDA`, `404 TRILHA_NAO_ENCONTRADA`.
 
 ### GET /api/licoes/{id}
 
-Conteúdo da lição em Markdown e o ID da próxima lição.
+Conteúdo da lição em Markdown e o ID da próxima lição. Ler é sempre livre, mesmo com a lição travada.
+
+- `liberada`: se a lição pode ser concluída agora (mesma regra da trilha).
+- `licaoPendente`: a primeira lição anterior não concluída (`{ id, titulo }`), ou `null` quando está liberada.
 
 ```http
 GET /api/licoes/d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70
@@ -441,6 +470,8 @@ GET /api/licoes/d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70
   "tipo": "texto",
   "totalPerguntas": 2,
   "concluida": false,
+  "liberada": true,
+  "licaoPendente": null,
   "proximaLicaoId": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7081"
 }
 ```
@@ -449,7 +480,8 @@ Erros: `400 ENTRADA_INVALIDA`, `404 LICAO_NAO_ENCONTRADA`.
 
 ### POST /api/licoes/{id}/concluir
 
-Conclui uma lição de texto. Vale 10 pontos uma única vez.
+Conclui uma lição de texto. Vale 10 pontos uma única vez. Só conclui depois das lições anteriores da mesma
+trilha; senão responde `409 LICAO_BLOQUEADA` com a lição que falta na mensagem.
 
 ```http
 POST /api/licoes/d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70/concluir
@@ -460,11 +492,12 @@ Authorization: Bearer <token>
 { "licaoId": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70", "concluida": true, "pontosGanhos": 10, "conquistasNovas": [] }
 ```
 
-Erros: `400 LICAO_E_PEDALE`, `401 NAO_AUTENTICADO`, `404 LICAO_NAO_ENCONTRADA`.
+Erros: `400 LICAO_E_PEDALE`, `401 NAO_AUTENTICADO`, `404 LICAO_NAO_ENCONTRADA`, `409 LICAO_BLOQUEADA`.
 
 ### GET /api/licoes/{id}/quiz
 
-Perguntas do quiz **sem** a resposta certa, com a situação do usuário em cada uma.
+Perguntas do quiz **sem** a resposta certa, com a situação do usuário em cada uma. `licaoConcluida` diz se o
+usuário já concluiu a lição; quando é `false`, todas as perguntas vêm com `podePontuar: false`.
 
 ```http
 GET /api/licoes/d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70/quiz
@@ -474,6 +507,7 @@ Authorization: Bearer <token>
 ```json
 {
   "licaoId": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+  "licaoConcluida": true,
   "perguntas": [
     {
       "id": "f6a7b8c9-d0e1-4f2a-9b3c-4d5e6f708192",
@@ -495,6 +529,8 @@ Erros: `400 ENTRADA_INVALIDA`, `404 LICAO_NAO_ENCONTRADA`.
 
 Corrige a resposta no servidor.
 
+- Só responde depois de concluir a lição da pergunta. Antes disso, a API responde `409 LICAO_NAO_CONCLUIDA`,
+  sem gravar a tentativa nem iniciar a espera de 24 horas.
 - A primeira tentativa vale 5 pontos se estiver certa.
 - Depois de um erro, uma nova tentativa só pontua 24 horas depois. Antes disso, a API responde
   `429 AGUARDE_NOVA_TENTATIVA` e não corrige a resposta.
@@ -519,11 +555,13 @@ Content-Type: application/json
 }
 ```
 
-Erros: `400 ENTRADA_INVALIDA`, `401 NAO_AUTENTICADO`, `404 PERGUNTA_NAO_ENCONTRADA`, `429 AGUARDE_NOVA_TENTATIVA`.
+Erros: `400 ENTRADA_INVALIDA`, `401 NAO_AUTENTICADO`, `404 PERGUNTA_NAO_ENCONTRADA`, `409 LICAO_NAO_CONCLUIDA`,
+`429 AGUARDE_NOVA_TENTATIVA`.
 
 ### POST /api/pedale/concluir
 
-Registra o Pedale e veja. Vale 15 pontos uma única vez.
+Registra o Pedale e veja. Vale 15 pontos uma única vez. Como as outras lições, só conclui depois das anteriores
+da trilha (`409 LICAO_BLOQUEADA`).
 
 ```http
 POST /api/pedale/concluir
@@ -537,7 +575,7 @@ Content-Type: application/json
 { "licaoId": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7081", "concluida": true, "pontosGanhos": 15, "conquistasNovas": [] }
 ```
 
-Erros: `400 LICAO_NAO_E_PEDALE`, `401 NAO_AUTENTICADO`, `404 LICAO_NAO_ENCONTRADA`.
+Erros: `400 LICAO_NAO_E_PEDALE`, `401 NAO_AUTENTICADO`, `404 LICAO_NAO_ENCONTRADA`, `409 LICAO_BLOQUEADA`.
 
 ---
 
@@ -546,6 +584,9 @@ Erros: `400 LICAO_NAO_E_PEDALE`, `401 NAO_AUTENTICADO`, `404 LICAO_NAO_ENCONTRAD
 ### GET /api/missoes
 
 Lista as missões com o progresso do usuário.
+
+- `trilhaSlug`: a trilha da missão (para o botão "missão prática" no fim da trilha), ou `null`.
+- `diasMarcados`: os dias registrados (`AAAA-MM-DD`, fuso de São Luís), em ordem. Vazio sem login.
 
 ```http
 GET /api/missoes
@@ -559,9 +600,11 @@ Authorization: Bearer <token>
     "slug": "ar-desligado-antes-de-dormir",
     "titulo": "Noites frescas",
     "descricao": "Desligue o ar-condicionado 30 minutos antes de dormir por 3 noites.",
+    "trilhaSlug": "ar-condicionado-sem-susto",
     "pontos": 30,
     "diasNecessarios": 3,
     "diasRegistrados": 1,
+    "diasMarcados": ["2026-10-16"],
     "registradaHoje": true,
     "concluida": false
   }
@@ -667,9 +710,12 @@ Erros: `400 ENTRADA_INVALIDA`.
 | 404 | `LICAO_NAO_ENCONTRADA` | Lição não existe |
 | 404 | `PERGUNTA_NAO_ENCONTRADA` | Pergunta não existe |
 | 404 | `MISSAO_NAO_ENCONTRADA` | Missão não existe |
+| 409 | `LICAO_BLOQUEADA` | Falta concluir uma lição anterior da mesma trilha (a mensagem diz qual) |
+| 409 | `LICAO_NAO_CONCLUIDA` | Resposta do quiz antes de concluir a lição |
 | 405 | `METODO_NAO_PERMITIDO` | A rota não aceita esse método (veja o cabeçalho `Allow`) |
 | 429 | `LIMITE_DE_TROCAS` | 3 trocas de bairro ou escola nos últimos 30 dias |
 | 429 | `AGUARDE_NOVA_TENTATIVA` | Nova tentativa do quiz ainda não liberada (24 h depois do erro) |
 | 429 | `LIMITE_TUTOR` | 20 mensagens ao tutor na última hora |
+| 429 | `LIMITE_DE_REQUISICOES` | Muitas simulações sem login do mesmo endereço no último minuto |
 | 500 | `ERRO_INTERNO` | Erro inesperado |
 | 503 | `TUTOR_INDISPONIVEL` | O serviço de IA não respondeu |

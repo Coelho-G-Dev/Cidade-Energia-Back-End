@@ -11,6 +11,7 @@ const horasAtras = (h: number) => new Date(AGORA.getTime() - h * 3_600_000).toIS
 
 const pergunta = {
   id: PERGUNTA,
+  licao_id: LICAO,
   opcoes: ["a", "b", "c"],
   indice_correto: 1,
   explicacao: "Porque sim.",
@@ -20,6 +21,7 @@ type Estado = {
   resposta: { correta: boolean; tentativa_em: string } | null;
   pontosJaDados: boolean;
   perdeuCorrida?: boolean;
+  licaoConcluida?: boolean;
 };
 
 function banco(estado: Estado) {
@@ -28,6 +30,11 @@ function banco(estado: Estado) {
     switch (op.tabela) {
       case "perguntas":
         return { data: pergunta };
+      case "progresso_licoes": {
+        const linha = estado.licaoConcluida === false ? null : { licao_id: LICAO };
+        if (metodo("maybeSingle")) return { data: linha };
+        return { data: linha ? [linha] : [] };
+      }
       case "respostas":
         if (metodo("upsert")) return { data: estado.resposta || estado.perdeuCorrida ? [] : [{ pergunta_id: PERGUNTA }] };
         if (metodo("update")) return { data: estado.perdeuCorrida ? [] : [{ pergunta_id: PERGUNTA }] };
@@ -121,6 +128,19 @@ describe("responderPergunta", () => {
     expect(r).toMatchObject({ correta: false, explicacao: null, tentativaPontuavel: false, pontosGanhos: 0 });
   });
 
+  it("lição não concluída responde 409 LICAO_NAO_CONCLUIDA sem gravar nem iniciar a espera", async () => {
+    const { cliente, operacoes } = banco({ resposta: null, pontosJaDados: false, licaoConcluida: false });
+    await expect(responderPergunta(cliente, PERFIL, PERGUNTA, 1, AGORA)).rejects.toMatchObject({
+      status: 409,
+      codigo: "LICAO_NAO_CONCLUIDA",
+      message: "Leia a lição antes de responder o quiz.",
+    });
+    expect(operacoes.some((o) => o.tabela === "respostas")).toBe(false);
+    expect(concedeuPontos(operacoes)).toBe(false);
+    const progresso = operacoes.find((o) => o.tabela === "progresso_licoes")!;
+    expect(progresso.chamadas).toContainEqual({ metodo: "eq", args: ["licao_id", LICAO] });
+  });
+
   it("opção fora da lista responde 400", async () => {
     const { cliente } = banco({ resposta: null, pontosJaDados: false });
     await expect(responderPergunta(cliente, PERFIL, PERGUNTA, 3, AGORA)).rejects.toMatchObject({
@@ -153,9 +173,10 @@ describe("mensagemNovaTentativa", () => {
 describe("obterQuiz", () => {
   const vazado = { id: PERGUNTA, ordem: 1, enunciado: "P?", opcoes: ["a", "b"], indice_correto: 1, explicacao: "segredo" };
 
-  function bancoQuiz(resposta: { pergunta_id: string; correta: boolean; tentativa_em: string } | null) {
+  function bancoQuiz(resposta: { pergunta_id: string; correta: boolean; tentativa_em: string } | null, licaoConcluida = true) {
     return supabaseFalso((op) => {
       if (op.tabela === "licoes") return { data: { id: LICAO } };
+      if (op.tabela === "progresso_licoes") return { data: licaoConcluida ? { licao_id: LICAO } : null };
       if (op.tabela === "perguntas") return { data: [vazado] };
       return { data: resposta ? [resposta] : [] };
     });
@@ -167,6 +188,7 @@ describe("obterQuiz", () => {
     const select = usou(operacoes.find((o) => o.tabela === "perguntas")!, "select")!.args[0] as string;
     expect(select).not.toMatch(/indice_correto|explicacao|\*/);
     expect(JSON.stringify(quiz)).not.toMatch(/indice_correto|explicacao|segredo/);
+    expect(quiz.licaoConcluida).toBe(false);
     expect(quiz.perguntas[0]).toEqual({
       id: PERGUNTA,
       ordem: 1,
@@ -188,5 +210,17 @@ describe("obterQuiz", () => {
       podePontuar: false,
       proximaTentativaEm: "2026-10-17T11:00:00.000Z",
     });
+  });
+
+  it("com a lição concluída e sem resposta, a pergunta pode pontuar", async () => {
+    const quiz = await obterQuiz(bancoQuiz(null).cliente, LICAO, PERFIL, AGORA);
+    expect(quiz.licaoConcluida).toBe(true);
+    expect(quiz.perguntas[0]!.podePontuar).toBe(true);
+  });
+
+  it("com a lição não concluída, nenhuma pergunta pode pontuar", async () => {
+    const quiz = await obterQuiz(bancoQuiz(null, false).cliente, LICAO, PERFIL, AGORA);
+    expect(quiz.licaoConcluida).toBe(false);
+    expect(quiz.perguntas.every((p) => !p.podePontuar)).toBe(true);
   });
 });

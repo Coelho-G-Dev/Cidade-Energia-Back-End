@@ -57,7 +57,22 @@ export function trilhasConcluidas(licoes: readonly LicaoDaTrilha[], concluidas: 
   return [...pendentesPorTrilha].filter(([, pendentes]) => pendentes === 0).map(([slug]) => slug);
 }
 
-export type RespostaAnterior = { correta: boolean; tentativaEm: Date } | null;
+export type LicaoEmOrdem = { id: string; ordem: number; titulo: string };
+export type LicaoPendente = { id: string; titulo: string };
+
+export function licaoPendenteAntes(
+  licoesDaTrilha: readonly LicaoEmOrdem[],
+  licao: { id: string; ordem: number },
+  concluidas: ReadonlySet<string>,
+): LicaoPendente | null {
+  if (concluidas.has(licao.id)) return null;
+  const pendente = [...licoesDaTrilha]
+    .sort((a, b) => a.ordem - b.ordem)
+    .find((l) => l.ordem < licao.ordem && !concluidas.has(l.id));
+  return pendente ? { id: pendente.id, titulo: pendente.titulo } : null;
+}
+
+export type RespostaAnterior ={ correta: boolean; tentativaEm: Date } | null;
 export type DecisaoTentativa = { pontuavel: boolean; proximaTentativaEm: Date | null };
 
 const MS_POR_HORA = 3_600_000;

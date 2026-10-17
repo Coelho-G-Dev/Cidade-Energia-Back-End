@@ -314,6 +314,7 @@ export const especificacaoOpenApi = {
           "",
           "O login é **opcional**: com token válido a simulação é salva e `simulacaoId` vem preenchido;",
           "sem token (ou com token inválido) o cálculo é feito, mas nada é salvo e `simulacaoId` é `null`.",
+          "Para a estimativa ao vivo, use `POST /api/simulacoes/previa`, que nunca salva.",
           "",
           "A primeira simulação salva vale pontos e a conquista *Primeira simulação*.",
         ].join("\n"),
@@ -376,6 +377,59 @@ export const especificacaoOpenApi = {
             "Algum aparelho enviado não existe.",
             "APARELHO_NAO_ENCONTRADO",
             `Aparelho ${UUID_APARELHO} não existe.`,
+          ),
+          "429": respostaErro(
+            "Muitas simulações sem login vindas do mesmo endereço no último minuto.",
+            "LIMITE_DE_REQUISICOES",
+            "Muitas simulações seguidas deste endereço. Espere um minuto e tente de novo.",
+          ),
+          "500": { $ref: "#/components/responses/ErroInterno" },
+        },
+      },
+    },
+    "/api/simulacoes/previa": {
+      post: {
+        tags: ["Simulador"],
+        summary: "Calcula a simulação sem salvar (prévia ao vivo)",
+        description: [
+          "Mesmo corpo e mesma resposta de `POST /api/simulacoes`, mas **nunca salva** e não pontua,",
+          "mesmo com token. Serve para a estimativa ao vivo enquanto o estudante ajusta os valores.",
+          "Use `POST /api/simulacoes` com token só quando ele tocar em \"Ver meu resultado\".",
+          "",
+          "Rota pública com limite por endereço de rede (o mesmo limite das simulações sem login).",
+        ].join("\n"),
+        operationId: "previaSimulacao",
+        security: [],
+        requestBody: {
+          required: true,
+          content: json(
+            { oneOf: [ref("SimulacaoConta"), ref("SimulacaoAparelhos")], discriminator: { propertyName: "modo" } },
+            {
+              examples: {
+                conta: { summary: "Modo conta", value: { modo: "conta", consumoKwh: 380, valorConta: 312 } },
+                aparelhos: {
+                  summary: "Modo aparelhos",
+                  value: { modo: "aparelhos", itens: [{ aparelhoId: UUID_APARELHO, quantidade: 1, horasDia: 0.5 }] },
+                },
+              },
+            },
+          ),
+        },
+        responses: {
+          "200": {
+            description: "Resultado da simulação, com `simulacaoId: null` e `pontosGanhos: 0`.",
+            content: json(ref("RespostaSimulacao"), { example: { ...resultadoConta, simulacaoId: null, ...semEvento } }),
+          },
+          "400": respostaErro("Dados inválidos ou JSON malformado.", "ENTRADA_INVALIDA", "consumoKwh: O consumo deve ser maior que zero."),
+          "404": respostaErro(
+            "Algum aparelho enviado não existe.",
+            "APARELHO_NAO_ENCONTRADO",
+            `Aparelho ${UUID_APARELHO} não existe.`,
+          ),
+          "429": respostaErro(
+            "Muitas simulações sem login vindas do mesmo endereço no último minuto.",
+            "LIMITE_DE_REQUISICOES",
+            "Muitas simulações seguidas deste endereço. Espere um minuto e tente de novo.",
           ),
           "500": { $ref: "#/components/responses/ErroInterno" },
         },
@@ -476,7 +530,7 @@ export const especificacaoOpenApi = {
             content: json(ref("RespostaTutor"), {
               example: {
                 resposta:
-                  "São Luís fica pertinho da linha do Equador, então o sol passa bem alto o ano todo. Para saber mais, veja a lição: O sol de São Luís",
+                  "São Luís fica pertinho da linha do Equador, então o sol passa bem alto o ano todo.",
                 licoesRelacionadas: [{ id: UUID_LICAO, titulo: "O sol de São Luís", trilhaSlug: "energia-solar-em-sao-luis" }],
               },
             }),
@@ -534,7 +588,12 @@ export const especificacaoOpenApi = {
       get: {
         tags: ["Trilhas e quiz"],
         summary: "Detalha uma trilha com as lições",
-        description: "Login opcional. O conteúdo de cada lição vem em `GET /api/licoes/{id}`.",
+        description: [
+          "Login opcional. O conteúdo de cada lição vem em `GET /api/licoes/{id}`.",
+          "",
+          "As lições são concluídas **na ordem**: `liberada` é `true` quando todas as anteriores da trilha estão",
+          "concluídas (a primeira está sempre liberada). Lição já concluída continua liberada. Sem login, só a primeira.",
+        ].join("\n"),
         operationId: "obterTrilha",
         security: [{}, { bearerAuth: [] }],
         parameters: [
@@ -561,8 +620,8 @@ export const especificacaoOpenApi = {
                 licoesConcluidas: 1,
                 concluida: false,
                 licoes: [
-                  { id: UUID_LICAO, ordem: 1, titulo: "O sol de São Luís", tipo: "texto", concluida: true },
-                  { id: UUID_LICAO_2, ordem: 2, titulo: "Pedale e veja", tipo: "pedale", concluida: false },
+                  { id: UUID_LICAO, ordem: 1, titulo: "O sol de São Luís", tipo: "texto", concluida: true, liberada: true },
+                  { id: UUID_LICAO_2, ordem: 2, titulo: "Pedale e veja", tipo: "pedale", concluida: false, liberada: true },
                 ],
               },
             }),
@@ -577,7 +636,11 @@ export const especificacaoOpenApi = {
       get: {
         tags: ["Trilhas e quiz"],
         summary: "Retorna o conteúdo de uma lição",
-        description: "`conteudo` vem em Markdown. Login opcional (só muda o campo `concluida`).",
+        description: [
+          "`conteudo` vem em Markdown. Ler é sempre livre, mesmo com a lição travada.",
+          "Login opcional: muda `concluida`, `liberada` e `licaoPendente`.",
+          "`licaoPendente` é a primeira lição anterior não concluída, que precisa ser concluída antes desta.",
+        ].join("\n"),
         operationId: "obterLicao",
         security: [{}, { bearerAuth: [] }],
         parameters: [parametroId("ID da lição.")],
@@ -594,6 +657,8 @@ export const especificacaoOpenApi = {
                 tipo: "texto",
                 totalPerguntas: 2,
                 concluida: false,
+                liberada: true,
+                licaoPendente: null,
                 proximaLicaoId: UUID_LICAO_2,
               },
             }),
@@ -609,7 +674,8 @@ export const especificacaoOpenApi = {
         tags: ["Trilhas e quiz"],
         summary: "Marca uma lição de texto como concluída",
         description:
-          "Pontua uma vez só por lição. Lição do tipo `pedale` é concluída por `POST /api/pedale/concluir`.",
+          "Pontua uma vez só por lição. Lição do tipo `pedale` é concluída por `POST /api/pedale/concluir`. " +
+          "Só conclui depois das lições anteriores da mesma trilha (`409 LICAO_BLOQUEADA`).",
         operationId: "concluirLicao",
         security: [{ bearerAuth: [] }],
         parameters: [parametroId("ID da lição.")],
@@ -627,6 +693,11 @@ export const especificacaoOpenApi = {
           ),
           "401": { $ref: "#/components/responses/NaoAutenticado" },
           "404": respostaErro("Lição não encontrada.", "LICAO_NAO_ENCONTRADA", "Lição não encontrada."),
+          "409": respostaErro(
+            "Falta concluir uma lição anterior da trilha.",
+            "LICAO_BLOQUEADA",
+            'Conclua antes a lição "O sol de São Luís".',
+          ),
           "500": { $ref: "#/components/responses/ErroInterno" },
         },
       },
@@ -638,6 +709,7 @@ export const especificacaoOpenApi = {
         description: [
           "Nunca traz o índice correto nem a explicação: a explicação só vem depois de responder.",
           "Com login, mostra se a pergunta já foi respondida, se acertou e quando pode pontuar de novo.",
+          "Com `licaoConcluida: false`, todas as perguntas vêm com `podePontuar: false`: conclua a lição antes.",
         ].join("\n"),
         operationId: "obterQuiz",
         security: [{}, { bearerAuth: [] }],
@@ -648,6 +720,7 @@ export const especificacaoOpenApi = {
             content: json(ref("Quiz"), {
               example: {
                 licaoId: UUID_LICAO,
+                licaoConcluida: true,
                 perguntas: [
                   {
                     id: UUID_PERGUNTA,
@@ -674,7 +747,8 @@ export const especificacaoOpenApi = {
         tags: ["Trilhas e quiz"],
         summary: "Responde uma pergunta do quiz",
         description: [
-          "A correção é feita no servidor. Regras de pontuação:",
+          "A correção é feita no servidor. Só responde depois de concluir a lição (`409 LICAO_NAO_CONCLUIDA`,",
+          "sem gravar a tentativa nem iniciar a espera). Regras de pontuação:",
           "- a **primeira tentativa** vale pontos se estiver certa;",
           "- depois de um erro, uma nova tentativa só vale pontos **24 h depois** (`proximaTentativaEm`);",
           "- depois de acertar, a pergunta não pontua mais;",
@@ -725,6 +799,11 @@ export const especificacaoOpenApi = {
           "400": respostaErro("Dados inválidos.", "ENTRADA_INVALIDA", "opcao: Escolha uma das opções da pergunta."),
           "401": { $ref: "#/components/responses/NaoAutenticado" },
           "404": respostaErro("Pergunta não encontrada.", "PERGUNTA_NAO_ENCONTRADA", "Pergunta não encontrada."),
+          "409": respostaErro(
+            "A lição da pergunta ainda não foi concluída.",
+            "LICAO_NAO_CONCLUIDA",
+            "Leia a lição antes de responder o quiz.",
+          ),
           "429": respostaErro(
             "A nova tentativa ainda não foi liberada.",
             "AGUARDE_NOVA_TENTATIVA",
@@ -739,7 +818,8 @@ export const especificacaoOpenApi = {
         tags: ["Trilhas e quiz"],
         summary: "Registra o Pedale e veja concluído",
         description:
-          "A atividade roda no front; o backend só registra a lição como concluída e pontua uma vez só.",
+          "A atividade roda no front; o backend só registra a lição como concluída e pontua uma vez só. " +
+          "Só conclui depois das lições anteriores da mesma trilha (`409 LICAO_BLOQUEADA`).",
         operationId: "concluirPedale",
         security: [{ bearerAuth: [] }],
         requestBody: {
@@ -762,6 +842,11 @@ export const especificacaoOpenApi = {
           ),
           "401": { $ref: "#/components/responses/NaoAutenticado" },
           "404": respostaErro("Lição não encontrada.", "LICAO_NAO_ENCONTRADA", "Lição não encontrada."),
+          "409": respostaErro(
+            "Falta concluir uma lição anterior da trilha.",
+            "LICAO_BLOQUEADA",
+            'Conclua antes a lição "Como a placa solar funciona".',
+          ),
           "500": { $ref: "#/components/responses/ErroInterno" },
         },
       },
@@ -770,7 +855,10 @@ export const especificacaoOpenApi = {
       get: {
         tags: ["Missões"],
         summary: "Lista as missões com o progresso do usuário",
-        description: "Login opcional. Os dias seguem o fuso de São Luís (UTC-3).",
+        description: [
+          "Login opcional. Os dias seguem o fuso de São Luís (UTC-3).",
+          "`diasMarcados` traz as datas registradas (`AAAA-MM-DD`, em ordem) e `trilhaSlug` liga a missão à trilha dela.",
+        ].join("\n"),
         operationId: "listarMissoes",
         security: [{}, { bearerAuth: [] }],
         responses: {
@@ -785,9 +873,11 @@ export const especificacaoOpenApi = {
                     slug: "ar-desligado-antes-de-dormir",
                     titulo: "Noites frescas",
                     descricao: "Desligue o ar-condicionado 30 minutos antes de dormir por 3 noites.",
+                    trilhaSlug: "ar-condicionado-sem-susto",
                     pontos: 30,
                     diasNecessarios: 3,
                     diasRegistrados: 1,
+                    diasMarcados: ["2026-10-16"],
                     registradaHoje: true,
                     concluida: false,
                   },
@@ -1305,13 +1395,17 @@ export const especificacaoOpenApi = {
                 type: "array",
                 items: {
                   type: "object",
-                  required: ["id", "ordem", "titulo", "tipo", "concluida"],
+                  required: ["id", "ordem", "titulo", "tipo", "concluida", "liberada"],
                   properties: {
                     id: { type: "string", format: "uuid" },
                     ordem: { type: "integer" },
                     titulo: { type: "string" },
                     tipo: { type: "string", enum: ["texto", "pedale"] },
                     concluida: { type: "boolean" },
+                    liberada: {
+                      type: "boolean",
+                      description: "Se a lição pode ser concluída: as anteriores da trilha estão concluídas (ou ela já está).",
+                    },
                   },
                 },
               },
@@ -1321,7 +1415,19 @@ export const especificacaoOpenApi = {
       },
       LicaoDetalhada: {
         type: "object",
-        required: ["id", "trilha", "ordem", "titulo", "conteudo", "tipo", "totalPerguntas", "concluida", "proximaLicaoId"],
+        required: [
+          "id",
+          "trilha",
+          "ordem",
+          "titulo",
+          "conteudo",
+          "tipo",
+          "totalPerguntas",
+          "concluida",
+          "liberada",
+          "licaoPendente",
+          "proximaLicaoId",
+        ],
         properties: {
           id: { type: "string", format: "uuid" },
           trilha: {
@@ -1335,6 +1441,13 @@ export const especificacaoOpenApi = {
           tipo: { type: "string", enum: ["texto", "pedale"] },
           totalPerguntas: { type: "integer" },
           concluida: { type: "boolean" },
+          liberada: { type: "boolean", description: "Se a lição pode ser concluída agora." },
+          licaoPendente: {
+            type: ["object", "null"],
+            required: ["id", "titulo"],
+            properties: { id: { type: "string", format: "uuid" }, titulo: { type: "string" } },
+            description: "Primeira lição anterior não concluída; `null` quando a lição está liberada.",
+          },
           proximaLicaoId: { type: ["string", "null"], format: "uuid", description: "Próxima lição da trilha." },
         },
       },
@@ -1358,7 +1471,10 @@ export const especificacaoOpenApi = {
           opcoes: { type: "array", items: { type: "string" }, description: "Responda com o índice (0, 1, 2...)." },
           jaRespondida: { type: "boolean" },
           acertou: { type: ["boolean", "null"], description: "`null` se ainda não respondeu." },
-          podePontuar: { type: "boolean", description: "Se a próxima resposta vale pontos. Sempre `false` sem login." },
+          podePontuar: {
+            type: "boolean",
+            description: "Se a próxima resposta vale pontos. Sempre `false` sem login ou com a lição não concluída.",
+          },
           proximaTentativaEm: {
             type: ["string", "null"],
             format: "date-time",
@@ -1368,9 +1484,10 @@ export const especificacaoOpenApi = {
       },
       Quiz: {
         type: "object",
-        required: ["licaoId", "perguntas"],
+        required: ["licaoId", "licaoConcluida", "perguntas"],
         properties: {
           licaoId: { type: "string", format: "uuid" },
+          licaoConcluida: { type: "boolean", description: "Se o usuário concluiu a lição. Sempre `false` sem login." },
           perguntas: { type: "array", items: ref("PerguntaDoQuiz") },
         },
       },
@@ -1411,9 +1528,11 @@ export const especificacaoOpenApi = {
           "slug",
           "titulo",
           "descricao",
+          "trilhaSlug",
           "pontos",
           "diasNecessarios",
           "diasRegistrados",
+          "diasMarcados",
           "registradaHoje",
           "concluida",
         ],
@@ -1422,9 +1541,15 @@ export const especificacaoOpenApi = {
           slug: { type: "string" },
           titulo: { type: "string" },
           descricao: { type: "string" },
+          trilhaSlug: { type: ["string", "null"], description: "Slug da trilha a que a missão pertence." },
           pontos: { type: "integer" },
           diasNecessarios: { type: "integer" },
           diasRegistrados: { type: "integer" },
+          diasMarcados: {
+            type: "array",
+            items: { type: "string", format: "date" },
+            description: "Dias registrados (`AAAA-MM-DD`, fuso de São Luís), em ordem. Vazio sem login.",
+          },
           registradaHoje: { type: "boolean" },
           concluida: { type: "boolean" },
         },

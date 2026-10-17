@@ -127,6 +127,7 @@ Copie o `access_token` da resposta e cole em **Authorize** no Swagger. Ele vale 
 | GET | `/api/perfil` | sim | Perfil do usuário logado (`tem_perfil` diz se já tem nome) |
 | PUT | `/api/perfil` | sim | Cria ou atualiza o perfil |
 | POST | `/api/simulacoes` | opcional | Simula a conta. Com login, salva a simulação |
+| POST | `/api/simulacoes/previa` | não | Mesmo cálculo, sem salvar (estimativa ao vivo) |
 | GET | `/api/simulacoes/ultima` | sim | Última simulação salva do usuário |
 | GET | `/api/trilhas` | opcional | Lista as trilhas com o progresso do usuário |
 | GET | `/api/trilhas/<slug>` | opcional | Trilha com a lista de lições |
@@ -227,11 +228,13 @@ Os números já vêm arredondados para exibir: R$ com 2 casas, o resto com 1. To
 Fluxo sugerido de uma trilha:
 
 1. `GET /api/trilhas` para montar a lista (com `licoesConcluidas` / `totalLicoes`).
-2. `GET /api/trilhas/<slug>` para mostrar as lições.
-3. `GET /api/licoes/<id>` para o conteúdo (Markdown) e `proximaLicaoId` para o botão "Próxima".
+2. `GET /api/trilhas/<slug>` para mostrar as lições. `liberada: false` marca as lições travadas.
+3. `GET /api/licoes/<id>` para o conteúdo (Markdown) e `proximaLicaoId` para o botão "Próxima". Ler é sempre livre;
+   `licaoPendente` diz qual lição anterior falta concluir.
 4. Lição `tipo: "texto"`: ao terminar, `POST /api/licoes/<id>/concluir`.
 5. Lição `tipo: "pedale"`: a atividade roda no front; ao terminar, `POST /api/pedale/concluir` com `{ "licaoId": "<id>" }`.
-6. Se `totalPerguntas > 0`, `GET /api/licoes/<id>/quiz` e, para cada pergunta, `POST /api/quiz/responder`:
+6. Se `totalPerguntas > 0`, **depois de concluir a lição**, `GET /api/licoes/<id>/quiz` e, para cada pergunta,
+   `POST /api/quiz/responder`:
 
 ```http
 POST /api/quiz/responder
@@ -241,6 +244,10 @@ Authorization: Bearer <token>
 ```
 
 `opcao` é o índice da opção (0, 1, 2...). A resposta traz `correta`, `explicacao` (só quando a resposta está certa; `null` quando está errada), `pontosGanhos` e `proximaTentativaEm`.
+
+**Ordem das lições:** dentro de uma trilha, a lição N só é concluída depois das anteriores. Pular a ordem dá
+`409 LICAO_BLOQUEADA`, e responder o quiz sem concluir a lição dá `409 LICAO_NAO_CONCLUIDA` (sem gravar a tentativa).
+Quem já tinha concluído fora de ordem mantém o progresso, os pontos e as conquistas.
 
 **Regras do quiz:**
 
@@ -256,6 +263,8 @@ Authorization: Bearer <token>
 `GET /api/missoes` lista as missões. Cada dia em que o estudante cumpre a missão, o front chama `POST /api/missoes/<id>/registrar`:
 
 - vale **um registro por dia** (fuso de São Luís); chamar de novo no mesmo dia devolve `novoRegistro: false`;
+- `diasMarcados` traz as datas já registradas (`AAAA-MM-DD`), para desenhar cada noite marcada;
+- `trilhaSlug` liga a missão à trilha dela, para levar à missão prática no fim da trilha;
 - quando `diasRegistrados` chega a `diasNecessarios`, a missão pontua uma vez só.
 
 ## Pontos e conquistas
@@ -320,7 +329,7 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "resposta": "Depende de quanto a sua casa gasta por mês... Para saber mais, veja a lição: Quantas placas para a minha casa?",
+  "resposta": "Depende de quanto a sua casa gasta por mês...",
   "licoesRelacionadas": [
     { "id": "<id>", "titulo": "Quantas placas para a minha casa?", "trilhaSlug": "energia-solar-em-sao-luis" }
   ]
@@ -377,7 +386,7 @@ Campos que a API não conhece são recusados com `400`. Por exemplo, o front **n
 
 O banco tem dados **ilustrativos** para testes: 12 bairros de São Luís, 6 aparelhos e 3 escolas fictícias com os códigos de turma `SOL2026`, `VENTO26` e `LUZ2026`.
 
-O conteúdo das trilhas (5 trilhas, 18 lições, 20 perguntas), as 2 missões e os 6 pontos do mapa são um **rascunho**: os textos começam com `[REVISAR]` e os fatos que precisam de fonte estão marcados com `[CONFERIR FONTE]`. Os pontos do mapa não correspondem a locais reais.
+O conteúdo das trilhas (5 trilhas, 18 lições, 20 perguntas) e as 2 missões foram revisados em 2026-10-17. Os números das lições são **estimativas didáticas** e usam as mesmas constantes do simulador (`src/lib/config.ts`). Os 6 pontos do mapa são ilustrativos e não correspondem a locais reais.
 
 ## Comandos
 

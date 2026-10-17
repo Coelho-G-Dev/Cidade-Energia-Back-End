@@ -54,6 +54,12 @@ Content-Type: application/json
 
 { "modo": "conta", "consumoKwh": 380, "valorConta": 312 }
 
+### Prévia ao vivo: calcula e nunca salva, mesmo com token
+POST {{baseUrl}}/api/simulacoes/previa
+Content-Type: application/json
+
+{ "modo": "conta", "consumoKwh": 150 }
+
 ### Simular pelos aparelhos, com login (salva e pontua na primeira vez)
 POST {{baseUrl}}/api/simulacoes
 Authorization: Bearer {{token}}

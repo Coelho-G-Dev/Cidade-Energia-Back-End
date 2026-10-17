@@ -8,9 +8,11 @@ export type Missao = {
   slug: string;
   titulo: string;
   descricao: string;
+  trilhaSlug: string | null;
   pontos: number;
   diasNecessarios: number;
   diasRegistrados: number;
+  diasMarcados: string[];
   registradaHoje: boolean;
   concluida: boolean;
 };
@@ -22,12 +24,13 @@ type LinhaMissao = {
   descricao: string;
   pontos: number;
   dias_necessarios: number;
+  trilha: { slug: string } | null;
 };
 
 export async function listarMissoes(supabase: SupabaseClient, perfilId: string | null, agora: Date): Promise<Missao[]> {
   const { data, error } = await supabase
     .from("missoes")
-    .select("id, slug, titulo, descricao, pontos, dias_necessarios")
+    .select("id, slug, titulo, descricao, pontos, dias_necessarios, trilha:trilhas(slug)")
     .order("ordem");
   if (error) throw erroDoBanco(error);
 
@@ -39,17 +42,20 @@ export async function listarMissoes(supabase: SupabaseClient, perfilId: string |
   }
 
   const hoje = diaEmSaoLuis(agora);
-  return (data as LinhaMissao[]).map((m) => {
+  return (data as unknown as LinhaMissao[]).map((m) => {
     const dias = registros.filter((r) => r.missao_id === m.id);
+    const diasMarcados = dias.map((r) => r.dia).sort();
     return {
       id: m.id,
       slug: m.slug,
       titulo: m.titulo,
       descricao: m.descricao,
+      trilhaSlug: m.trilha?.slug ?? null,
       pontos: m.pontos,
       diasNecessarios: m.dias_necessarios,
       diasRegistrados: dias.length,
-      registradaHoje: dias.some((r) => r.dia === hoje),
+      diasMarcados,
+      registradaHoje: diasMarcados.includes(hoje),
       concluida: missaoCompleta(dias.length, m.dias_necessarios),
     };
   });

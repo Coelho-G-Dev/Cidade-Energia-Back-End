@@ -285,15 +285,53 @@ async function verificarRotasDia2({ A, B }) {
   checar("GET trilha inexistente → 404", inexistente.status === 404 && inexistente.corpo.erro?.codigo === "TRILHA_NAO_ENCONTRADA");
 
   const [l1, l2, pedale] = [solar.corpo.licoes[0], solar.corpo.licoes[1], solar.corpo.licoes.find((l) => l.tipo === "pedale")];
+  const l4 = solar.corpo.licoes[3];
+  checar("trilha sem progresso: só a lição 1 liberada", solar.corpo.licoes.map((l) => l.liberada).join() === "true,false,false,false");
   const licao = await chamar("GET", `/api/licoes/${l1.id}`);
-  checar("GET /api/licoes/{id} → conteúdo em markdown", licao.status === 200 && licao.corpo.conteudo.includes("[REVISAR]") && licao.corpo.proximaLicaoId === l2.id);
+  checar(
+    "GET /api/licoes/{id} → conteúdo em markdown, sem marcadores de rascunho",
+    licao.status === 200 && licao.corpo.conteudo.trim().length > 0 && !/\[(REVISAR|CONFERIR FONTE)\]/.test(licao.corpo.conteudo) &&
+      licao.corpo.proximaLicaoId === l2.id && licao.corpo.liberada && licao.corpo.licaoPendente === null,
+  );
+  const licao2 = await chamar("GET", `/api/licoes/${l2.id}`, { token: A.token });
+  checar("lição 2 sem a 1 → liberada false e licaoPendente = lição 1", licao2.status === 200 && !licao2.corpo.liberada && licao2.corpo.licaoPendente?.id === l1.id);
 
-  const quiz = await chamar("GET", `/api/licoes/${l2.id}/quiz`, { token: A.token });
-  checar("GET quiz → 2 perguntas, sem gabarito", quiz.status === 200 && quiz.corpo.perguntas.length === 2 && !/indice_correto|explicacao/.test(JSON.stringify(quiz.corpo)));
-  const [p1, p2] = quiz.corpo.perguntas;
+  const quizTravado = await chamar("GET", `/api/licoes/${l2.id}/quiz`, { token: A.token });
+  checar(
+    "GET quiz → 2 perguntas, sem gabarito; sem a lição concluída não pontua",
+    quizTravado.status === 200 && quizTravado.corpo.perguntas.length === 2 && !/indice_correto|explicacao/.test(JSON.stringify(quizTravado.corpo)) &&
+      quizTravado.corpo.licaoConcluida === false && quizTravado.corpo.perguntas.every((p) => !p.podePontuar),
+  );
+  const [p1, p2] = quizTravado.corpo.perguntas;
   const gabarito = new Map(
     (await admin.from("perguntas").select("id, indice_correto").in("id", [p1.id, p2.id])).data.map((p) => [p.id, p.indice_correto]),
   );
+
+  const antesDeLer = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p1.id, opcao: gabarito.get(p1.id) } });
+  const semTentativa = await admin.from("respostas").select("pergunta_id").eq("perfil_id", A.id);
+  checar(
+    "responder sem concluir a lição → 409 LICAO_NAO_CONCLUIDA, sem gravar tentativa",
+    antesDeLer.status === 409 && antesDeLer.corpo.erro?.codigo === "LICAO_NAO_CONCLUIDA" && semTentativa.data?.length === 0,
+    JSON.stringify(antesDeLer.corpo),
+  );
+  const pulando = await chamar("POST", `/api/licoes/${l2.id}/concluir`, { token: A.token });
+  checar(
+    "concluir a lição 2 sem a 1 → 409 LICAO_BLOQUEADA citando a lição 1",
+    pulando.status === 409 && pulando.corpo.erro?.codigo === "LICAO_BLOQUEADA" && pulando.corpo.erro.mensagem.includes(l1.titulo),
+    JSON.stringify(pulando.corpo),
+  );
+  const pedalCedo = await chamar("POST", "/api/pedale/concluir", { token: A.token, body: { licaoId: pedale.id } });
+  checar("pedale sem a lição 2 → 409 LICAO_BLOQUEADA", pedalCedo.status === 409 && pedalCedo.corpo.erro?.codigo === "LICAO_BLOQUEADA");
+
+  const concluir = await chamar("POST", `/api/licoes/${l1.id}/concluir`, { token: A.token });
+  const concluirDeNovo = await chamar("POST", `/api/licoes/${l1.id}/concluir`, { token: A.token });
+  checar("concluir lição → 10 pontos; de novo → 0", concluir.corpo.pontosGanhos === 10 && concluirDeNovo.corpo.pontosGanhos === 0);
+  const concluir2 = await chamar("POST", `/api/licoes/${l2.id}/concluir`, { token: A.token });
+  checar("depois da lição 1, a lição 2 → 10 pontos", concluir2.status === 200 && concluir2.corpo.pontosGanhos === 10, JSON.stringify(concluir2.corpo));
+  const solarDepois = await chamar("GET", "/api/trilhas/energia-solar-em-sao-luis", { token: A.token });
+  checar("trilha com 1 e 2 concluídas: pedale liberado, lição 4 não", solarDepois.corpo.licoes.map((l) => l.liberada).join() === "true,true,true,false");
+  const quiz = await chamar("GET", `/api/licoes/${l2.id}/quiz`, { token: A.token });
+  checar("com a lição concluída, o quiz pode pontuar", quiz.corpo.licaoConcluida === true && quiz.corpo.perguntas.every((p) => p.podePontuar));
 
   const perfilA = await chamar("GET", "/api/perfil", { token: A.token });
   const pontosEscola = async () =>
@@ -315,9 +353,6 @@ async function verificarRotasDia2({ A, B }) {
   const foraDaLista = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p1.id, opcao: 4 } });
   checar("opção fora da lista → 400", foraDaLista.status === 400);
 
-  const concluir = await chamar("POST", `/api/licoes/${l1.id}/concluir`, { token: A.token });
-  const concluirDeNovo = await chamar("POST", `/api/licoes/${l1.id}/concluir`, { token: A.token });
-  checar("concluir lição → 10 pontos; de novo → 0", concluir.corpo.pontosGanhos === 10 && concluirDeNovo.corpo.pontosGanhos === 0);
   const pedaleComoTexto = await chamar("POST", `/api/licoes/${pedale.id}/concluir`, { token: A.token });
   checar("lição pedale pelo concluir → 400 LICAO_E_PEDALE", pedaleComoTexto.status === 400 && pedaleComoTexto.corpo.erro?.codigo === "LICAO_E_PEDALE");
   const pedal = await chamar("POST", "/api/pedale/concluir", { token: A.token, body: { licaoId: pedale.id } });
@@ -325,6 +360,8 @@ async function verificarRotasDia2({ A, B }) {
   checar("pedale → 15 pontos; de novo → 0", pedal.corpo.pontosGanhos === 15 && pedalDeNovo.corpo.pontosGanhos === 0);
   const textoComoPedale = await chamar("POST", "/api/pedale/concluir", { token: A.token, body: { licaoId: l1.id } });
   checar("lição de texto no pedale → 400", textoComoPedale.status === 400 && textoComoPedale.corpo.erro?.codigo === "LICAO_NAO_E_PEDALE");
+  const licao4 = await chamar("GET", `/api/licoes/${l4.id}`, { token: A.token });
+  checar("depois do pedale, a lição 4 fica liberada", licao4.corpo.liberada === true && licao4.corpo.licaoPendente === null);
 
   const missoes = await chamar("GET", "/api/missoes", { token: A.token });
   const descarte = missoes.corpo.find((m) => m.slug === "descarte-de-lixo-eletronico");
@@ -342,8 +379,8 @@ async function verificarRotasDia2({ A, B }) {
 
   const resumoA = await chamar("GET", "/api/perfil/resumo", { token: A.token });
   checar(
-    "resumo de A: 60 pontos, missão, conquista e posição da escola",
-    resumoA.status === 200 && resumoA.corpo.pontos === 60 && resumoA.corpo.missoesConcluidas === 1 && resumoA.corpo.licoesConcluidas === 2 &&
+    "resumo de A: 70 pontos, 3 lições, missão, conquista e posição da escola",
+    resumoA.status === 200 && resumoA.corpo.pontos === 70 && resumoA.corpo.missoesConcluidas === 1 && resumoA.corpo.licoesConcluidas === 3 &&
       resumoA.corpo.conquistas.find((c) => c.slug === "descarte_certo")?.obtida && resumoA.corpo.escola?.posicao >= 1,
     JSON.stringify(resumoA.corpo),
   );
@@ -362,7 +399,7 @@ async function verificarRotasDia2({ A, B }) {
   const pontosB = await B.cliente.from("pontos_eventos").select("perfil_id");
   checar("B só vê os próprios pontos", !pontosB.error && pontosB.data.length === 1 && pontosB.data[0].perfil_id === B.id);
   const quizB = await chamar("GET", `/api/licoes/${l2.id}/quiz`, { token: B.token });
-  checar("quiz de B não mostra as respostas de A", quizB.corpo.perguntas.every((p) => !p.jaRespondida && p.podePontuar));
+  checar("quiz de B não mostra as respostas nem o progresso de A", quizB.corpo.licaoConcluida === false && quizB.corpo.perguntas.every((p) => !p.jaRespondida));
   const missoesB = await chamar("GET", "/api/missoes", { token: B.token });
   checar("missões de B não mostram os registros de A", missoesB.corpo.every((m) => m.diasRegistrados === 0));
 

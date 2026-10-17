@@ -96,7 +96,8 @@ describe("regras puras do tutor", () => {
     expect(instrucoes).toContain("Não invente números");
     expect(instrucoes).toContain("só sobre energia, conta de luz");
     expect(instrucoes).toContain("diga que não sabe");
-    expect(instrucoes).toContain("veja a lição");
+    expect(instrucoes).toContain("Não indique lições");
+    expect(instrucoes).not.toContain("Para saber mais");
     expect(instrucoes).toContain("[Trecho 1]\nLição: O sol. Texto.");
   });
 

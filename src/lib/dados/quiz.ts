@@ -15,9 +15,20 @@ export type PerguntaDoQuiz = {
   proximaTentativaEm: string | null;
 };
 
-export type Quiz = { licaoId: string; perguntas: PerguntaDoQuiz[] };
+export type Quiz = { licaoId: string; licaoConcluida: boolean; perguntas: PerguntaDoQuiz[] };
 
 type LinhaResposta = { pergunta_id: string; correta: boolean; tentativa_em: string };
+
+async function licaoFoiConcluida(supabase: SupabaseClient, perfilId: string, licaoId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("progresso_licoes")
+    .select("licao_id")
+    .eq("perfil_id", perfilId)
+    .eq("licao_id", licaoId)
+    .maybeSingle();
+  if (error) throw erroDoBanco(error);
+  return Boolean(data);
+}
 
 const paraAnterior = (r: { correta: boolean; tentativa_em: string } | null | undefined): RespostaAnterior =>
   r ? { correta: r.correta, tentativaEm: new Date(r.tentativa_em) } : null;
@@ -40,6 +51,8 @@ export async function obterQuiz(
   if (perguntas.error) throw erroDoBanco(perguntas.error);
   const linhas = perguntas.data as { id: string; ordem: number; enunciado: string; opcoes: string[] }[];
 
+  const licaoConcluida = perfilId !== null && (await licaoFoiConcluida(supabase, perfilId, licaoId));
+
   const respostas = new Map<string, LinhaResposta>();
   if (perfilId && linhas.length > 0) {
     const { data, error: erroRespostas } = await supabase
@@ -56,6 +69,7 @@ export async function obterQuiz(
 
   return {
     licaoId,
+    licaoConcluida,
     perguntas: linhas.map((p) => {
       const resposta = respostas.get(p.id);
       const decisao = avaliarTentativa(paraAnterior(resposta), agora);
@@ -66,7 +80,7 @@ export async function obterQuiz(
         opcoes: p.opcoes,
         jaRespondida: Boolean(resposta),
         acertou: resposta ? resposta.correta : null,
-        podePontuar: perfilId !== null && decisao.pontuavel,
+        podePontuar: licaoConcluida && decisao.pontuavel,
         proximaTentativaEm: decisao.proximaTentativaEm?.toISOString() ?? null,
       };
     }),
@@ -141,13 +155,16 @@ export async function responderPergunta(
 ): Promise<RespostaDoQuiz> {
   const { data: pergunta, error } = await admin
     .from("perguntas")
-    .select("id, opcoes, indice_correto, explicacao")
+    .select("id, licao_id, opcoes, indice_correto, explicacao")
     .eq("id", perguntaId)
     .maybeSingle();
   if (error) throw erroDoBanco(error);
   if (!pergunta) throw naoEncontrado("PERGUNTA_NAO_ENCONTRADA", "Pergunta não encontrada.");
   if (opcao >= (pergunta.opcoes as string[]).length) {
     throw new ErroApi(400, "ENTRADA_INVALIDA", "opcao: Escolha uma das opções da pergunta.");
+  }
+  if (!(await licaoFoiConcluida(admin, perfilId, pergunta.licao_id))) {
+    throw new ErroApi(409, "LICAO_NAO_CONCLUIDA", "Leia a lição antes de responder o quiz.");
   }
 
   const correta = opcao === pergunta.indice_correto;
