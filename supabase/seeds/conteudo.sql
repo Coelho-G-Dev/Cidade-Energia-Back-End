@@ -202,7 +202,7 @@ Jogar no lixo comum é desperdiçar recursos e arriscar a saúde de quem trabalh
 
 No Brasil existe a **logística reversa**: fabricantes e lojas precisam receber de volta alguns produtos depois do uso, como pilhas, baterias, lâmpadas e eletroeletrônicos. Isso está na **Política Nacional de Resíduos Sólidos** (Lei 12.305/2010).
 
-**Use o mapa do app** para encontrar pontos de coleta. Atenção: nesta versão de testes, os pontos do mapa são **ilustrativos**.
+**Use o mapa do app** para encontrar pontos de coleta em São Luís, como os ecopontos da Prefeitura. Alguns também recebem pilhas e baterias: a descrição de cada ponto avisa. Antes de ir, confira o horário de funcionamento.
 
 **Missão:** leve um eletrônico velho a um ponto de coleta e registre na aba Missões.$md$),
 
@@ -353,10 +353,22 @@ insert into public.pontos_mapa (nome, tipo, latitude, longitude, descricao) valu
    'Ponto ilustrativo para testar o mapa: escola com placas solares no telhado. Não corresponde a um local real.'),
   ('Praça com iluminação solar - Centro (ilustrativo)', 'solar', -2.530700, -44.301600,
    'Ponto ilustrativo para testar o mapa: postes com placa solar. Não corresponde a um local real.'),
-  ('Ponto de coleta de eletrônicos - Vinhais (ilustrativo)', 'coleta', -2.515000, -44.262000,
-   'Ponto ilustrativo para testar o mapa: recebe celulares, carregadores e fones. Não corresponde a um local real.'),
-  ('Ponto de coleta de pilhas e baterias - Cohab Anil (ilustrativo)', 'coleta', -2.538000, -44.220000,
-   'Ponto ilustrativo para testar o mapa: recebe pilhas e baterias. Não corresponde a um local real.'),
+  ('Ecoponto Vila Isabel - Central de Logística Reversa', 'coleta', -2.562046, -44.317393,
+   'Central de Logística Reversa de Eletroeletrônicos da COOPRESL, ao lado do Ecoponto Vila Isabel, em parceria com a Prefeitura de São Luís. Recebe eletrônicos. Av. dos Portugueses, Vila Isabel.'),
+  ('Ecoponto Calhau (Av. dos Holandeses)', 'coleta', -2.489828, -44.269783,
+   'Recebe notebooks, eletrodomésticos, teclados e outros eletrônicos. Av. dos Holandeses, s/nº, Calhau.'),
+  ('Ecoponto Recanto do Vinhais', 'coleta', -2.520757, -44.260119,
+   'Recebe eletrônicos. Ecoponto da Prefeitura de São Luís. Funciona de segunda a sábado, das 7h às 19h.'),
+  ('Ecoponto Jardim Renascença', 'coleta', -2.494621, -44.288415,
+   'Recebe eletrônicos, pilhas e baterias. Ecoponto da Prefeitura de São Luís. Rua Netuno, Jardim Renascença. Funciona de segunda a sábado, das 7h às 19h.'),
+  ('Ecoponto Cidade Operária', 'coleta', -2.564431, -44.199903,
+   'Recebe eletrônicos. Ecoponto da Prefeitura de São Luís. Funciona de segunda a sábado, das 7h às 19h.'),
+  ('Ecoponto Bequimão', 'coleta', -2.528452, -44.248340,
+   'Recebe eletrônicos. Ecoponto da Prefeitura de São Luís. Funciona de segunda a sábado, das 7h às 19h.'),
+  ('Ecoponto Itapiracó', 'coleta', -2.532347, -44.202923,
+   'Recebe eletrônicos, pilhas e baterias. Ecoponto da Prefeitura de São Luís. Av. Joaquim Mochel, Itapiracó. Funciona de segunda a sábado, das 7h às 19h.'),
+  ('UFMA - coleta de eletrônicos (CCET)', 'coleta', -2.557943, -44.309531,
+   'Ponto de coleta de resíduos eletrônicos na entrada do Centro de Ciências Exatas e Tecnologia (CCET), no campus da UFMA, Av. dos Portugueses.'),
   ('Mutirão de troca de lâmpadas - Cidade Operária (ilustrativo)', 'acao', -2.579000, -44.202000,
    'Ação ilustrativa para testar o mapa: troca de lâmpadas antigas por LED. Não corresponde a um evento real.'),
   ('Feira de eficiência energética - Renascença (ilustrativo)', 'acao', -2.499000, -44.286000,
@@ -368,4 +380,4 @@ on conflict (nome) do update set
   descricao = excluded.descricao;
 
 comment on table public.trilhas is 'Conteúdo didático revisado em 2026-10-17. Os números são estimativas; as fontes das constantes estão em src/lib/config.ts.';
-comment on table public.pontos_mapa is 'Pontos ilustrativos para testes; não correspondem a locais ou eventos reais.';
+comment on table public.pontos_mapa is 'Pontos de coleta reais de São Luís, conferidos em 2026-10-17. Os pontos solares e as ações ainda são ilustrativos e não correspondem a locais ou eventos reais.';

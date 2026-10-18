@@ -410,7 +410,7 @@ Campos que a API não conhece são recusados com `400`. Por exemplo, o front **n
 
 O banco tem dados **ilustrativos** para testes: 12 bairros de São Luís, 6 aparelhos e 3 escolas fictícias com os códigos de turma `SOL2026`, `VENTO26` e `LUZ2026`.
 
-O conteúdo das trilhas (5 trilhas, 18 lições, 20 perguntas) e as 2 missões foram revisados em 2026-10-17. Os números das lições são **estimativas didáticas** e usam as mesmas constantes do simulador (`src/lib/config.ts`). Os 6 pontos do mapa são ilustrativos e não correspondem a locais reais.
+O conteúdo das trilhas (5 trilhas, 18 lições, 20 perguntas) e as 2 missões foram revisados em 2026-10-17. Os números das lições são **estimativas didáticas** e usam as mesmas constantes do simulador (`src/lib/config.ts`). O mapa tem 12 pontos: os **8 de coleta são locais reais** de São Luís (ecopontos da Prefeitura, a Central de Logística Reversa da Vila Isabel e a UFMA), conferidos em 2026-10-17, com o que cada um recebe e o horário na descrição. Os 2 pontos solares e as 2 ações ainda são ilustrativos e não correspondem a locais reais.
 
 ## Comandos
 

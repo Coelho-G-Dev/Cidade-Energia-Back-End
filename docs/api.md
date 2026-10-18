@@ -669,7 +669,9 @@ Erros: `400 ENTRADA_INVALIDA` (`tipo` ausente ou inválido).
 
 ### GET /api/mapa/pontos
 
-Pontos do mapa. O filtro `?tipo=solar|coleta|acao` é opcional. Os pontos do seed são ilustrativos.
+Pontos do mapa. O filtro `?tipo=solar|coleta|acao` é opcional. Os 8 pontos de coleta são locais reais de São Luís
+(conferidos em 2026-10-17); a descrição diz o que cada um recebe e o horário. Os pontos solares e as ações ainda são
+ilustrativos.
 
 ```http
 GET /api/mapa/pontos?tipo=coleta
@@ -679,11 +681,11 @@ GET /api/mapa/pontos?tipo=coleta
 [
   {
     "id": "b8c9d0e1-f2a3-4b4c-9d5e-6f708192a3b4",
-    "nome": "Ponto de coleta de eletrônicos (ilustrativo)",
+    "nome": "Ecoponto Itapiracó",
     "tipo": "coleta",
     "latitude": -2.53,
     "longitude": -44.3,
-    "descricao": "Exemplo de ponto de coleta."
+    "descricao": "Recebe eletrônicos, pilhas e baterias. Ecoponto da Prefeitura de São Luís. Av. Joaquim Mochel, Itapiracó. Funciona de segunda a sábado, das 7h às 19h."
   }
 ]
 ```

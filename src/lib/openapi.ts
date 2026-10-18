@@ -986,11 +986,11 @@ export const especificacaoOpenApi = {
                 example: [
                   {
                     id: UUID_PONTO,
-                    nome: "Ponto de coleta de eletrônicos (ilustrativo)",
+                    nome: "Ecoponto Itapiracó",
                     tipo: "coleta",
                     latitude: -2.53,
                     longitude: -44.3,
-                    descricao: "Exemplo de ponto de coleta.",
+                    descricao: "Recebe eletrônicos, pilhas e baterias. Ecoponto da Prefeitura de São Luís. Av. Joaquim Mochel, Itapiracó. Funciona de segunda a sábado, das 7h às 19h.",
                   },
                 ],
               },
