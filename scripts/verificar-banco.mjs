@@ -239,7 +239,7 @@ async function verificarBancoDia2({ A, B }) {
   checar("NÃO lê indice_correto", Boolean((await anon.from("perguntas").select("indice_correto")).error));
   checar("NÃO lê explicacao", Boolean((await A.cliente.from("perguntas").select("explicacao")).error));
   checar("NÃO lê perguntas com select *", Boolean((await A.cliente.from("perguntas").select("*")).error));
-  for (const [tabela, total] of [["missoes", 2], ["conquistas", 6], ["pontos_mapa", 12]]) {
+  for (const [tabela, total] of [["missoes", 2], ["conquistas", 6], ["pontos_mapa", 14]]) {
     const r = await anon.from(tabela).select("*");
     checar(`lê ${tabela} (${total})`, !r.error && r.data.length === total, r.error?.message);
   }
@@ -409,8 +409,8 @@ async function verificarRotasDia2({ A, B }) {
 
   const mapa = await chamar("GET", "/api/mapa/pontos?tipo=coleta");
   checar(
-    "GET /api/mapa/pontos?tipo=coleta → 8 pontos reais, sem \"(ilustrativo)\"",
-    mapa.status === 200 && mapa.corpo.length === 8 && mapa.corpo.every((p) => !p.nome.includes("(ilustrativo)")),
+    "GET /api/mapa/pontos?tipo=coleta → 10 pontos reais, sem \"(ilustrativo)\"",
+    mapa.status === 200 && mapa.corpo.length === 10 && mapa.corpo.every((p) => !p.nome.includes("(ilustrativo)")),
   );
   const bairros = await chamar("GET", "/api/rankings?tipo=bairros");
   checar(

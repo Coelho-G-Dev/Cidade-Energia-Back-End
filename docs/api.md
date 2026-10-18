@@ -669,7 +669,7 @@ Erros: `400 ENTRADA_INVALIDA` (`tipo` ausente ou inválido).
 
 ### GET /api/mapa/pontos
 
-Pontos do mapa. O filtro `?tipo=solar|coleta|acao` é opcional. Os 8 pontos de coleta são locais reais de São Luís
+Pontos do mapa. O filtro `?tipo=solar|coleta|acao` é opcional. Os 10 pontos de coleta são locais reais de São Luís
 (conferidos em 2026-10-17); a descrição diz o que cada um recebe e o horário. Os pontos solares e as ações ainda são
 ilustrativos.
 
