@@ -8,6 +8,7 @@ import {
   economiaKwhPorRegras,
   geracaoDiariaPorPlaca,
   placasNecessarias,
+  consumoCompensavel,
   retornoAnos,
   simular,
   type ItemAparelho,
@@ -59,6 +60,12 @@ describe("fórmulas", () => {
     expect(placasNecessarias(712.8, 2.376)).toBe(10);
   });
 
+  it("o mínimo faturável fica fora do que as placas compensam", () => {
+    expect(consumoCompensavel(380, 50)).toBe(330);
+    expect(consumoCompensavel(40, 50)).toBe(40);
+    expect(consumoCompensavel(50, 50)).toBe(50);
+  });
+
   it("retorno = custo ÷ (economia mensal × 12) e recusa economia zero", () => {
     expect(retornoAnos(12000, 500)).toBe(2);
     expect(() => retornoAnos(12000, 0)).toThrow(ErroCalculo);
@@ -104,9 +111,9 @@ describe("simular — modo conta", () => {
       consumoKwh: 380,
       gastoMensal: 312,
       economiaMensal: 31.2,
-      placas: 6,
-      retornoAnos: 3.5,
-      co2EvitadoKgAno: 197.6,
+      placas: 5,
+      retornoAnos: 3.4,
+      co2EvitadoKgAno: 164.7,
       pesos: [],
     });
   });
@@ -159,9 +166,9 @@ describe("simular — modo aparelhos", () => {
   });
 
   it("dimensiona placas, retorno e CO₂", () => {
-    expect(r.placas).toBe(6);
-    expect(r.retornoAnos).toBe(3.3);
-    expect(r.co2EvitadoKgAno).toBe(197.6);
+    expect(r.placas).toBe(5);
+    expect(r.retornoAnos).toBe(3.2);
+    expect(r.co2EvitadoKgAno).toBe(164.7);
   });
 
   it("recusa lista vazia", () => {

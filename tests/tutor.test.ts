@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { ErroGemini, gerarEmbeddings, gerarResposta, textoDeConsulta, textoDeDocumento, type Buscar } from "@/lib/ia/gemini";
+import type { ResultadoSimulacao } from "@/lib/calculos/simulador";
 import { responderTutor, type ConfigTutor } from "@/lib/ia/rag";
 import {
+  descreverSimulacao,
   limitarResposta,
   mensagemLimiteTutor,
   montarInstrucoes,
@@ -35,8 +37,31 @@ function geminiFalso(resposta: unknown = { candidates: [{ content: { parts: [{ t
 
 const config = (buscar: Buscar): ConfigTutor => ({ apiKey: "chave-de-teste", modelo: "gemini-teste", buscar });
 
-function bancoFalso({ permitido = true, trechos = [] as { licao_id: string; trecho: string; similaridade: number }[] } = {}) {
+const SIMULACAO: ResultadoSimulacao = {
+  consumoKwh: 380,
+  gastoMensal: 312,
+  economiaMensal: 31.2,
+  placas: 5,
+  retornoAnos: 2.4,
+  co2EvitadoKgAno: 159.4,
+  pesos: [
+    { aparelho: "Ar-condicionado", percentual: 47 },
+    { aparelho: "Chuveiro elétrico", percentual: 18 },
+    { aparelho: "Geladeira", percentual: 13 },
+    { aparelho: "TV", percentual: 4 },
+  ],
+};
+
+function bancoFalso({
+  permitido = true,
+  trechos = [] as { licao_id: string; trecho: string; similaridade: number }[],
+  simulacao = null as ResultadoSimulacao | null,
+  erroSimulacao = false,
+} = {}) {
   return supabaseFalso((op: Operacao) => {
+    if (op.tabela === "simulacoes") {
+      return erroSimulacao ? { error: { message: "falhou" } } : { data: simulacao ? { resultado: simulacao } : null };
+    }
     if (op.tabela === "rpc:registrar_uso_tutor") {
       return { data: { permitido, liberado_em: permitido ? null : "2026-10-16T16:30:00Z" } };
     }
@@ -103,6 +128,27 @@ describe("regras puras do tutor", () => {
 
   it("sem contexto, as instruções avisam que nenhuma lição trata do assunto", () => {
     expect(montarInstrucoes([])).toContain("Nenhuma lição do app trata desse assunto");
+  });
+
+  it("as instruções falam com qualquer pessoa, não só estudantes", () => {
+    const instrucoes = montarInstrucoes([]);
+    expect(instrucoes).toContain("qualquer pessoa de São Luís");
+    expect(instrucoes).not.toContain("11 a 17 anos");
+  });
+
+  it("descreve a simulação com os 3 aparelhos que mais pesam", () => {
+    const texto = descreverSimulacao(SIMULACAO);
+    expect(texto).toContain("Consumo: 380 kWh por mês.");
+    expect(texto).toContain("Gasto estimado: R$ 312,00 por mês.");
+    expect(texto).toContain("Placas solares para o consumo: 5, que se pagariam em cerca de 2,4 anos.");
+    expect(texto).toContain("Ar-condicionado (47%), Chuveiro elétrico (18%), Geladeira (13%).");
+    expect(texto).not.toContain("TV");
+    expect(descreverSimulacao({ ...SIMULACAO, pesos: [] })).not.toContain("O que mais pesa");
+  });
+
+  it("as instruções trazem a simulação da pessoa ou avisam que ela não existe", () => {
+    expect(montarInstrucoes([], SIMULACAO)).toContain("SIMULAÇÃO DA PESSOA (estimativas do simulador do app):\nConsumo: 380 kWh");
+    expect(montarInstrucoes([])).toContain("(A pessoa ainda não fez uma simulação.)");
   });
 
   it("corta respostas longas numa palavra inteira", () => {
@@ -235,6 +281,33 @@ describe("responderTutor", () => {
     const sistema = JSON.stringify(geracao?.corpo.systemInstruction);
     expect(sistema).toContain("O sol passa alto");
     expect(sistema).not.toContain("Lixo eletrônico");
+  });
+
+  it("usa a última simulação da pessoa nas instruções", async () => {
+    const banco = bancoFalso({ trechos, simulacao: SIMULACAO });
+    const { buscar, chamadas } = geminiFalso();
+    await responderTutor({
+      admin: banco.cliente,
+      usuarioId: "u1",
+      mensagem: "Vale a pena ter placa solar?",
+      historico: [],
+      gemini: config(buscar),
+    });
+
+    const consulta = banco.operacoes.find((o) => o.tabela === "simulacoes");
+    expect(consulta?.chamadas).toContainEqual({ metodo: "eq", args: ["perfil_id", "u1"] });
+    const geracao = chamadas.find((c) => c.url.endsWith(":generateContent"));
+    expect(JSON.stringify(geracao?.corpo.systemInstruction)).toContain("Placas solares para o consumo: 5");
+  });
+
+  it("falha ao ler a simulação não derruba o tutor", async () => {
+    const banco = bancoFalso({ trechos, erroSimulacao: true });
+    const { buscar, chamadas } = geminiFalso();
+    const r = await responderTutor({ admin: banco.cliente, usuarioId: "u1", mensagem: "Oi", historico: [], gemini: config(buscar) });
+
+    expect(r.resposta).toBe("O sol é forte aqui!");
+    const geracao = chamadas.find((c) => c.url.endsWith(":generateContent"));
+    expect(JSON.stringify(geracao?.corpo.systemInstruction)).toContain("ainda não fez uma simulação");
   });
 
   it("registra o uso antes de chamar o Gemini", async () => {

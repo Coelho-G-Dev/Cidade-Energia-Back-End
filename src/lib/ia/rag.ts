@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ResultadoSimulacao } from "@/lib/calculos/simulador";
 import { TUTOR_LIMITE_POR_HORA, TUTOR_TRECHOS_BUSCADOS } from "@/lib/config";
 import { envGemini } from "@/lib/env";
 import { ErroApi, erroDoBanco } from "@/lib/http/erros";
@@ -63,6 +64,21 @@ export async function buscarTrechos(
   }));
 }
 
+export async function buscarSimulacaoDoTutor(admin: SupabaseClient, usuarioId: string): Promise<ResultadoSimulacao | null> {
+  const { data, error } = await admin
+    .from("simulacoes")
+    .select("resultado")
+    .eq("perfil_id", usuarioId)
+    .order("criado_em", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ resultado: ResultadoSimulacao }>();
+  if (error) {
+    console.error("Tutor: falha ao ler a última simulação; seguindo sem ela");
+    return null;
+  }
+  return data?.resultado ?? null;
+}
+
 type LinhaLicao = { id: string; titulo: string; trilhas: { slug: string } | { slug: string }[] | null };
 
 export async function buscarLicoesRelacionadas(supabase: SupabaseClient, ids: string[]): Promise<LicaoRelacionada[]> {
@@ -83,14 +99,17 @@ export async function responderTutor(pedido: PedidoTutor): Promise<RespostaTutor
   await registrarUsoTutor(pedido.admin, pedido.usuarioId);
 
   try {
-    const embedding = await gerarEmbedding(textoDeConsulta(pedido.mensagem), gemini);
+    const [embedding, simulacao] = await Promise.all([
+      gerarEmbedding(textoDeConsulta(pedido.mensagem), gemini),
+      buscarSimulacaoDoTutor(pedido.admin, pedido.usuarioId),
+    ]);
     const relevantes = selecionarRelevantes(await buscarTrechos(pedido.admin, embedding));
     const [licoesRelacionadas, texto] = await Promise.all([
       buscarLicoesRelacionadas(pedido.admin, idsDeLicoes(relevantes)),
       gerarResposta(
         {
           modelo: gemini.modelo,
-          instrucoes: montarInstrucoes(relevantes),
+          instrucoes: montarInstrucoes(relevantes, simulacao),
           historico: pedido.historico,
           mensagem: pedido.mensagem,
         },

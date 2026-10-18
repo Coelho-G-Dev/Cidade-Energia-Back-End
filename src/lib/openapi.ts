@@ -39,9 +39,9 @@ const resultadoConta = {
   consumoKwh: 380,
   gastoMensal: 312,
   economiaMensal: 31.2,
-  placas: 6,
-  retornoAnos: 2.5,
-  co2EvitadoKgAno: 191.2,
+  placas: 5,
+  retornoAnos: 2.4,
+  co2EvitadoKgAno: 159.4,
   pesos: [],
 };
 
@@ -49,9 +49,9 @@ const resultadoAparelhos = {
   consumoKwh: 82.5,
   gastoMensal: 73.33,
   economiaMensal: 24.44,
-  placas: 2,
-  retornoAnos: 3.6,
-  co2EvitadoKgAno: 63.7,
+  placas: 1,
+  retornoAnos: 4.5,
+  co2EvitadoKgAno: 31.9,
   pesos: [{ aparelho: "Chuveiro elétrico", percentual: 100 }],
 };
 
