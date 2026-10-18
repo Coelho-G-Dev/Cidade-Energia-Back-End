@@ -1,4 +1,5 @@
 import {
+  CUSTO_DISPONIBILIDADE_KWH,
   CUSTO_SISTEMA_POR_KWP,
   DIAS_POR_MES,
   FATOR_EMISSAO_KG_CO2_KWH,
@@ -42,6 +43,7 @@ export type Parametros = {
   irradiacao: number;
   fatorEmissao: number;
   percentualEconomiaPadrao: number;
+  custoDisponibilidadeKwh: number;
   regrasEconomia: Readonly<Record<string, { reducaoHorasDia: number }>>;
 };
 
@@ -53,6 +55,7 @@ export const PARAMETROS_PADRAO: Parametros = {
   irradiacao: IRRADIACAO_MEDIA_SAO_LUIS,
   fatorEmissao: FATOR_EMISSAO_KG_CO2_KWH,
   percentualEconomiaPadrao: PERCENTUAL_ECONOMIA_PADRAO,
+  custoDisponibilidadeKwh: CUSTO_DISPONIBILIDADE_KWH,
   regrasEconomia: REGRAS_ECONOMIA,
 };
 
@@ -140,6 +143,13 @@ export function placasNecessarias(consumoKwhMes: number, geracaoDiariaPlaca: num
   return Math.max(1, Math.ceil(razao - TOLERANCIA_PONTO_FLUTUANTE));
 }
 
+// O mínimo faturável (custo de disponibilidade) continua na conta mesmo com placas.
+// Se o consumo não passa desse mínimo, mantém o consumo inteiro para ainda mostrar um resultado.
+export function consumoCompensavel(consumoKwhMes: number, custoDisponibilidadeKwh: number): number {
+  const acimaDoMinimo = consumoKwhMes - custoDisponibilidadeKwh;
+  return acimaDoMinimo > 0 ? acimaDoMinimo : consumoKwhMes;
+}
+
 export function retornoAnos(custoSistema: number, economiaMensal: number): number {
   exigirPositivo(economiaMensal, "Economia mensal");
   return custoSistema / (economiaMensal * 12);
@@ -181,10 +191,11 @@ export function simular(entrada: EntradaSimulacao, p: Parametros = PARAMETROS_PA
   }
 
   const geracaoPlacaDia = geracaoDiariaPorPlaca(p.irradiacao, p.potenciaPlacaKwp, p.fatorPerdas);
-  const placas = placasNecessarias(consumoKwh, geracaoPlacaDia);
+  const compensavel = consumoCompensavel(consumoKwh, p.custoDisponibilidadeKwh);
+  const placas = placasNecessarias(compensavel, geracaoPlacaDia);
   const kwhGeradoMes = placas * geracaoPlacaDia * DIAS_POR_MES;
   const custoSistema = placas * p.potenciaPlacaKwp * p.custoPorKwp;
-  const economiaSolarMensal = Math.min(kwhGeradoMes, consumoKwh) * tarifa;
+  const economiaSolarMensal = Math.min(kwhGeradoMes, compensavel) * tarifa;
 
   return {
     consumoKwh: arredondar(consumoKwh, 1),

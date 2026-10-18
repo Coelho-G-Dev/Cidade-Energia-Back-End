@@ -6,6 +6,7 @@ export const FATOR_PERDAS = 0.8;
 export const IRRADIACAO_MEDIA_SAO_LUIS = 5.226;
 export const FATOR_EMISSAO_KG_CO2_KWH = 0.0385;
 export const PERCENTUAL_ECONOMIA_PADRAO = 0.1;
+export const CUSTO_DISPONIBILIDADE_KWH = 50;
 
 export const REGRAS_ECONOMIA: Readonly<Record<string, { reducaoHorasDia: number; dica: string }>> = {
   ar_condicionado: { reducaoHorasDia: 1, dica: "Usar o ar-condicionado 1 hora a menos por dia" },
@@ -76,5 +77,7 @@ export const FONTES = {
   FATOR_EMISSAO_KG_CO2_KWH:
     "Estimativa. Média anual do SIN em 2023 (38,5 kg CO₂/MWh). Fonte: MCTI/SIRENE, fatores de emissão de CO₂ do SIN.",
   PERCENTUAL_ECONOMIA_PADRAO: "Estimativa. Meta didática de 10% com mudança de hábitos. Fonte: PROCEL, dicas de economia.",
+  CUSTO_DISPONIBILIDADE_KWH:
+    "Mínimo faturável de uma ligação bifásica (50 kWh/mês): mesmo com placas, a conta não fica abaixo disso, então esses kWh não entram na economia nem no dimensionamento. Monofásica = 30 kWh, trifásica = 100 kWh. Não modela o pagamento gradual do Fio B da Lei 14.300/2022. Fonte: ANEEL, Resolução Normativa 1.000/2021.",
   REGRAS_ECONOMIA: "Estimativa didática: 1 h a menos de ar-condicionado e 10 min a menos de banho por dia.",
 } as const;
