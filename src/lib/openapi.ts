@@ -109,6 +109,8 @@ export const especificacaoOpenApi = {
       get: {
         tags: ["Catálogos"],
         summary: "Lista as escolas, com filtro opcional por bairro",
+        description:
+          "Só lista escolas ativas. Quando a lista real de escolas é carregada, as fictícias ficam inativas: saem desta lista, do código de turma e do ranking.",
         operationId: "listarEscolas",
         security: [],
         parameters: [
@@ -472,8 +474,9 @@ export const especificacaoOpenApi = {
         summary: "Quanto uma placa solar gera com o sol mais recente de São Luís",
         description: [
           "Usa a irradiação diária da NASA POWER (`ALLSKY_SFC_SW_DWN`, community RE) do dia mais recente com dado",
-          "nos últimos 10 dias, já que os dados chegam com alguns dias de atraso. O servidor consulta a NASA POWER",
-          "no máximo uma vez a cada 6 horas. Se ela falhar, usa o último valor guardado ou, sem ele, a média anual do config.",
+          "nos últimos 10 dias, já que os dados chegam com alguns dias de atraso. O servidor tenta renovar o valor",
+          "quando o guardado passa de 6 horas. Se a NASA POWER falhar ou não tiver dia válido, usa o último dia válido",
+          "guardado ou, sem ele, a média anual padrão.",
         ].join(" "),
         operationId: "solDeHoje",
         security: [],
@@ -482,13 +485,15 @@ export const especificacaoOpenApi = {
             description: "Estimativa para uma placa de 550 Wp.",
             content: json(ref("SolDeHoje"), {
               example: {
-                data: "2026-10-09",
-                irradiacao: 6.22,
-                kwhPorPlaca: 2.74,
-                horasArCondicionado: 2.7,
-                co2EvitadoKg: 0.105,
+                data: "2026-10-16",
+                atualizadoEm: "2026-10-21T14:05:12.000Z",
+                diasDeAtraso: 5,
+                irradiacao: 7.09,
+                kwhPorPlaca: 3.12,
+                horasArCondicionado: 3.1,
+                co2EvitadoKg: 0.12,
                 estimativa: true,
-                fonte: "nasa-power",
+                fonte: "cache",
               },
             }),
           },
@@ -1282,12 +1287,32 @@ export const especificacaoOpenApi = {
       },
       SolDeHoje: {
         type: "object",
-        required: ["data", "irradiacao", "kwhPorPlaca", "horasArCondicionado", "co2EvitadoKg", "estimativa", "fonte"],
+        required: [
+          "data",
+          "atualizadoEm",
+          "diasDeAtraso",
+          "irradiacao",
+          "kwhPorPlaca",
+          "horasArCondicionado",
+          "co2EvitadoKg",
+          "estimativa",
+          "fonte",
+        ],
         properties: {
           data: {
             type: ["string", "null"],
             format: "date",
-            description: "Dia da medição (fuso de São Luís). `null` quando o valor é a média anual do config.",
+            description: "Dia real da medição (fuso de São Luís). `null` quando o valor é a média anual padrão.",
+          },
+          atualizadoEm: {
+            type: ["string", "null"],
+            format: "date-time",
+            description: "Quando o servidor buscou esse valor na NASA POWER com sucesso. `null` com a fonte `padrao`.",
+          },
+          diasDeAtraso: {
+            type: ["integer", "null"],
+            minimum: 0,
+            description: "Dias entre `data` e hoje em São Luís. `null` com a fonte `padrao`.",
           },
           irradiacao: { type: "number", description: "Irradiação no plano horizontal, em kWh/m²/dia (2 casas)." },
           kwhPorPlaca: { type: "number", description: "Energia gerada por uma placa de 550 Wp no dia, em kWh (2 casas)." },
@@ -1299,9 +1324,9 @@ export const especificacaoOpenApi = {
           estimativa: { type: "boolean", const: true },
           fonte: {
             type: "string",
-            enum: ["nasa-power", "cache", "config"],
+            enum: ["nasa", "cache", "padrao"],
             description:
-              "`nasa-power`: consultada agora; `cache`: último valor guardado da NASA POWER; `config`: média anual de reserva.",
+              "`nasa`: buscado agora na NASA POWER; `cache`: último dia válido guardado da NASA POWER; `padrao`: média anual de reserva.",
           },
         },
       },

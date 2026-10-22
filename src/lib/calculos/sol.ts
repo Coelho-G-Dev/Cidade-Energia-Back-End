@@ -1,4 +1,5 @@
 import { arredondar, ErroCalculo, geracaoDiariaPorPlaca, PARAMETROS_PADRAO, type Parametros } from "@/lib/calculos/simulador";
+import { diaEmSaoLuis } from "@/lib/gamificacao/regras";
 
 export type CalculoSolDeHoje = {
   kwhPorPlaca: number;
@@ -22,4 +23,12 @@ export function calcularSolDeHoje(
     horasArCondicionado: arredondar(kwhPorPlaca / (potenciaArW / 1000), 1),
     co2EvitadoKg: arredondar(kwhPorPlaca * p.fatorEmissao, 3),
   };
+}
+
+const MS_POR_DIA = 86_400_000;
+
+export function diasDeAtraso(data: string | null, agora: Date): number | null {
+  if (data === null) return null;
+  const dias = Math.round((Date.parse(`${diaEmSaoLuis(agora)}T00:00:00Z`) - Date.parse(`${data}T00:00:00Z`)) / MS_POR_DIA);
+  return Math.max(0, dias);
 }

@@ -4,12 +4,12 @@ import { HORAS_CACHE_CLIMATOLOGIA, HORAS_CACHE_IRRADIACAO, IRRADIACAO_MEDIA_SAO_
 import { buscarIrradiacaoDiaria, buscarMediaClimatologica, type Buscar } from "@/lib/nasa-power";
 import { clienteAdmin } from "@/lib/supabase/admin";
 
-export type FonteIrradiacao = "nasa-power" | "cache" | "config";
-export type Irradiacao = { data: string | null; valor: number; fonte: FonteIrradiacao };
+export type FonteIrradiacao = "nasa" | "cache" | "padrao";
+export type Irradiacao = { data: string | null; valor: number; fonte: FonteIrradiacao; atualizadoEm: string | null };
 export type Dependencias = { supabase?: SupabaseClient; buscar?: Buscar; agora?: Date };
 
 type Tipo = "diaria" | "climatologia";
-type LinhaCache = { data: string | null; valor: number | string | null; buscado_em: string };
+type LinhaCache = { data: string | null; valor: number | string | null; buscado_em: string; atualizado_em: string | null };
 type Leitura = { data: string | null; valor: number };
 
 const MS_POR_HORA = 3_600_000;
@@ -20,10 +20,10 @@ const VALIDADE_HORAS: Record<Tipo, number> = {
   climatologia: HORAS_CACHE_CLIMATOLOGIA,
 };
 
-const RESERVA: Irradiacao = { data: null, valor: IRRADIACAO_MEDIA_SAO_LUIS, fonte: "config" };
+const RESERVA: Irradiacao = { data: null, valor: IRRADIACAO_MEDIA_SAO_LUIS, fonte: "padrao", atualizadoEm: null };
 
 async function lerCache(supabase: SupabaseClient, tipo: Tipo): Promise<LinhaCache | null> {
-  const { data, error } = await supabase.from(TABELA).select("data, valor, buscado_em").eq("tipo", tipo).maybeSingle();
+  const { data, error } = await supabase.from(TABELA).select("data, valor, buscado_em, atualizado_em").eq("tipo", tipo).maybeSingle();
   if (error) throw new Error(`cache_irradiacao: ${error.message}`);
   return data;
 }
@@ -45,14 +45,18 @@ async function reservarBusca(supabase: SupabaseClient, tipo: Tipo, linha: LinhaC
 async function gravar(supabase: SupabaseClient, tipo: Tipo, leitura: Leitura, agora: Date): Promise<void> {
   const { error } = await supabase
     .from(TABELA)
-    .update({ data: leitura.data, valor: leitura.valor, buscado_em: agora.toISOString() })
+    .update({ data: leitura.data, valor: leitura.valor, buscado_em: agora.toISOString(), atualizado_em: agora.toISOString() })
     .eq("tipo", tipo);
   if (error) throw new Error(`cache_irradiacao: ${error.message}`);
 }
 
 function doCache(linha: LinhaCache | null): Irradiacao | null {
   if (linha?.valor == null) return null;
-  return { data: linha.data, valor: Number(linha.valor), fonte: "cache" };
+  return { data: linha.data, valor: Number(linha.valor), fonte: "cache", atualizadoEm: linha.atualizado_em };
+}
+
+function maisAntigo(novo: string | null, guardado: string | null): boolean {
+  return novo !== null && guardado !== null && novo < guardado;
 }
 
 function registrarFalha(tipo: Tipo, e: unknown): void {
@@ -81,13 +85,14 @@ async function obter(tipo: Tipo, buscarNaApi: () => Promise<Leitura>, deps: Depe
     registrarFalha(tipo, e);
     return doCache(linha) ?? RESERVA;
   }
+  if (maisAntigo(leitura.data, linha?.data ?? null)) return doCache(linha) ?? RESERVA;
 
   try {
     await gravar(supabase, tipo, leitura, agora);
   } catch (e) {
     registrarFalha(tipo, e);
   }
-  return { ...leitura, fonte: "nasa-power" };
+  return { ...leitura, fonte: "nasa", atualizadoEm: agora.toISOString() };
 }
 
 export function irradiacaoDeHoje(deps: Dependencias = {}): Promise<Irradiacao> {

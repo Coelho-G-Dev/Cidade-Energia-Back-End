@@ -37,6 +37,19 @@ function checar(descricao, ok, detalhe = "") {
 
 const criados = [];
 
+const turmas = await admin
+  .from("escolas")
+  .select("codigo_turma")
+  .eq("ativa", true)
+  .not("codigo_turma", "is", null)
+  .order("nome")
+  .limit(2);
+if (turmas.error || turmas.data.length < 2) {
+  console.error(`São precisas 2 escolas ativas com código de turma: ${turmas.error?.message ?? turmas.data.length}`);
+  process.exit(1);
+}
+const [TURMA_1, TURMA_2] = turmas.data.map((t) => t.codigo_turma);
+
 async function entrarAnonimo() {
   const cliente = novoCliente();
   const { data, error } = await cliente.auth.signInAnonymously();
@@ -76,11 +89,11 @@ async function verificarBanco() {
   const perfilA = await A.cliente.from("perfis").select("*").eq("id", A.id).maybeSingle();
   checar("trigger criou o perfil de A (sem nome)", perfilA.data?.primeiro_nome === null, perfilA.error?.message);
 
-  const turma = await A.cliente.rpc("resolver_codigo_turma", { p_codigo: "sol2026" });
+  const turma = await A.cliente.rpc("resolver_codigo_turma", { p_codigo: TURMA_1.toLowerCase() });
   checar("resolve código de turma válido", typeof turma.data === "string", turma.error?.message);
   const turmaInvalida = await A.cliente.rpc("resolver_codigo_turma", { p_codigo: "NAOEXISTE" });
   checar("código inexistente retorna null", turmaInvalida.data === null, turmaInvalida.error?.message);
-  const turmaAnon = await anon.rpc("resolver_codigo_turma", { p_codigo: "SOL2026" });
+  const turmaAnon = await anon.rpc("resolver_codigo_turma", { p_codigo: TURMA_1 });
   checar("NÃO resolve código sem login", Boolean(turmaAnon.error));
 
   const bairroId = bairros.data[0].id;
@@ -93,11 +106,11 @@ async function verificarBanco() {
   checar("escola escolhida direto fica sem verificação", atualiza.data?.[0]?.escola_verificada === false);
   const verificaDireto = await A.cliente.from("perfis").update({ escola_verificada: true }).eq("id", A.id).select();
   checar("NÃO liga escola_verificada direto", Boolean(verificaDireto.error));
-  const outraTurma = await A.cliente.rpc("confirmar_turma", { p_codigo: "VENTO26" });
+  const outraTurma = await A.cliente.rpc("confirmar_turma", { p_codigo: TURMA_2 });
   checar("código de outra escola NÃO verifica", outraTurma.data === false, outraTurma.error?.message);
-  const confirmaAnon = await anon.rpc("confirmar_turma", { p_codigo: "SOL2026" });
+  const confirmaAnon = await anon.rpc("confirmar_turma", { p_codigo: TURMA_1 });
   checar("NÃO confirma turma sem login", Boolean(confirmaAnon.error));
-  const confirma = await A.cliente.rpc("confirmar_turma", { p_codigo: "sol2026" });
+  const confirma = await A.cliente.rpc("confirmar_turma", { p_codigo: TURMA_1.toLowerCase() });
   const verificada = await A.cliente.from("perfis").select("escola_verificada").eq("id", A.id).single();
   checar("código da própria escola verifica", confirma.data === true && verificada.data?.escola_verificada === true, confirma.error?.message);
 
@@ -167,7 +180,7 @@ async function verificarRotas({ A, B, bairroId }) {
 
   const comTurma = await chamar("PUT", "/api/perfil", {
     token: B.token,
-    body: { primeiro_nome: "Bia", bairro_id: bairroId, codigo_turma: "vento26" },
+    body: { primeiro_nome: "Bia", bairro_id: bairroId, codigo_turma: TURMA_2.toLowerCase() },
   });
   checar("PUT /api/perfil com codigo_turma → 200 e escola verificada", comTurma.status === 200 && comTurma.corpo.tem_perfil && comTurma.corpo.escola_id && comTurma.corpo.escola_verificada === true);
   const turmaRuim = await chamar("PUT", "/api/perfil", {
@@ -537,9 +550,11 @@ async function verificarRotasDia3({ A, B }) {
   const sol = await chamar("GET", "/api/sol-de-hoje");
   checar(
     `GET /api/sol-de-hoje → estimativa (fonte ${sol.corpo?.fonte}, ${sol.corpo?.data ?? "sem data"}, ${sol.corpo?.irradiacao} kWh/m²)`,
-    sol.status === 200 && sol.corpo.estimativa === true && ["nasa-power", "cache", "config"].includes(sol.corpo.fonte) &&
+    sol.status === 200 && sol.corpo.estimativa === true && ["nasa", "cache", "padrao"].includes(sol.corpo.fonte) &&
       sol.corpo.irradiacao > 0 && sol.corpo.kwhPorPlaca > 0 && sol.corpo.horasArCondicionado > 0 && sol.corpo.co2EvitadoKg > 0 &&
-      (sol.corpo.data === null || /^\d{4}-\d{2}-\d{2}$/.test(sol.corpo.data)),
+      (sol.corpo.data === null || /^\d{4}-\d{2}-\d{2}$/.test(sol.corpo.data)) &&
+      (sol.corpo.data === null) === (sol.corpo.diasDeAtraso === null) &&
+      (sol.corpo.fonte === "padrao") === (sol.corpo.atualizadoEm === null),
     JSON.stringify(sol.corpo),
   );
   const sol2 = await chamar("GET", "/api/sol-de-hoje");
@@ -598,7 +613,7 @@ async function verificarFluxoCompleto() {
   const bairro = (await chamar("GET", "/api/bairros")).corpo[0];
   const perfil = await chamar("PUT", "/api/perfil", {
     token: C.token,
-    body: { primeiro_nome: "Caio", bairro_id: bairro.id, codigo_turma: "SOL2026" },
+    body: { primeiro_nome: "Caio", bairro_id: bairro.id, codigo_turma: TURMA_1 },
   });
   checar("C cria o perfil com a escola da turma", perfil.status === 200 && Boolean(perfil.corpo.escola_id), JSON.stringify(perfil.corpo));
   const escolaId = perfil.corpo.escola_id;

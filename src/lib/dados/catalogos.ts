@@ -22,7 +22,7 @@ export async function listarEscolas(
   supabase: SupabaseClient,
   bairroId?: string,
 ): Promise<Escola[]> {
-  let consulta = supabase.from("escolas").select("id, nome, bairro_id").order("nome");
+  let consulta = supabase.from("escolas").select("id, nome, bairro_id").eq("ativa", true).order("nome");
   if (bairroId) consulta = consulta.eq("bairro_id", bairroId);
   const { data, error } = await consulta;
   if (error) throw erroDoBanco(error);

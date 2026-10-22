@@ -57,7 +57,7 @@ GET /api/bairros
 
 ### GET /api/escolas
 
-Lista as escolas. O filtro `?bairro=<id>` é opcional.
+Lista as escolas **ativas**. O filtro `?bairro=<id>` é opcional. Quando a lista real de escolas for carregada, as 3 fictícias ficam inativas: saem desta lista, o código de turma delas para de funcionar e elas saem do ranking. Quem já tinha escolhido uma delas continua com ela no perfil.
 
 ```http
 GET /api/escolas?bairro=2f6c1a9e-4b7d-4c1e-9a3f-1d2b3c4d5e6f
@@ -322,24 +322,28 @@ GET /api/sol-de-hoje
 
 ```json
 {
-  "data": "2026-10-09",
-  "irradiacao": 6.22,
-  "kwhPorPlaca": 2.74,
-  "horasArCondicionado": 2.7,
-  "co2EvitadoKg": 0.105,
+  "data": "2026-10-16",
+  "atualizadoEm": "2026-10-21T14:05:12.000Z",
+  "diasDeAtraso": 5,
+  "irradiacao": 7.09,
+  "kwhPorPlaca": 3.12,
+  "horasArCondicionado": 3.1,
+  "co2EvitadoKg": 0.12,
   "estimativa": true,
-  "fonte": "nasa-power"
+  "fonte": "cache"
 }
 ```
 
 | Campo | Significado |
 |---|---|
-| `data` | Dia da medição (fuso de São Luís). `null` quando o valor é a média de reserva |
+| `data` | Dia real da medição (fuso de São Luís). `null` quando o valor é a média padrão |
+| `atualizadoEm` | Quando o servidor buscou esse valor na NASA POWER com sucesso (ISO 8601). `null` com a fonte `padrao` |
+| `diasDeAtraso` | Dias entre `data` e hoje em São Luís (a NASA costuma atrasar de 2 a 7 dias). `null` com a fonte `padrao` |
 | `irradiacao` | kWh/m²/dia no plano horizontal |
 | `kwhPorPlaca` | Energia de uma placa de 550 Wp nesse dia (kWh) |
 | `horasArCondicionado` | Horas de ar-condicionado (potência do catálogo) que essa energia alimenta |
 | `co2EvitadoKg` | CO₂ evitado por essa placa nesse dia (kg) |
-| `fonte` | `nasa-power` (consultado agora), `cache` (último valor guardado, de até 6 h) ou `config` (média anual de reserva) |
+| `fonte` | `nasa` (buscado agora), `cache` (último dia válido guardado; o servidor tenta renovar quando passa de 6 h) ou `padrao` (média anual de reserva, 5,226) |
 
 ---
 

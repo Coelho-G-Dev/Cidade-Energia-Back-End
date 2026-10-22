@@ -420,22 +420,24 @@ Authorization: Bearer <token>
 
 ```json
 {
-  "data": "2026-10-09",
-  "irradiacao": 6.22,
-  "kwhPorPlaca": 2.74,
-  "horasArCondicionado": 2.7,
-  "co2EvitadoKg": 0.105,
+  "data": "2026-10-16",
+  "atualizadoEm": "2026-10-21T14:05:12.000Z",
+  "diasDeAtraso": 5,
+  "irradiacao": 7.09,
+  "kwhPorPlaca": 3.12,
+  "horasArCondicionado": 3.1,
+  "co2EvitadoKg": 0.12,
   "estimativa": true,
-  "fonte": "nasa-power"
+  "fonte": "cache"
 }
 ```
 
-- Os dados da NASA chegam com **alguns dias de atraso**. `data` é o dia mais recente com medição nos últimos 10 dias. Mostre algo como "Sol de 09/10".
+- Os dados da NASA chegam com **alguns dias de atraso**. `data` é o dia mais recente com medição nos últimos 10 dias, e `diasDeAtraso` diz quantos dias se passaram desde ele. Mostre algo como "Sol de 16/10 (há 5 dias)". `atualizadoEm` é quando o servidor buscou esse valor na NASA.
 - `kwhPorPlaca` é o que uma placa de 550 Wp gera nesse dia. `horasArCondicionado` é por quantas horas essa energia liga o ar-condicionado do catálogo (1.000 W), e `co2EvitadoKg`, o CO₂ evitado nesse dia.
 - `fonte` diz de onde veio o valor:
-  - `nasa-power`: consultado agora;
-  - `cache`: último valor guardado (o servidor consulta a NASA no máximo a cada 6 horas);
-  - `config`: a NASA e o cache falharam, e o valor é a média anual de reserva (5,226). Nesse caso `data` vem `null`.
+  - `nasa`: buscado agora;
+  - `cache`: último dia válido guardado (o servidor tenta renovar quando o valor passa de 6 horas);
+  - `padrao`: a NASA e o cache falharam, e o valor é a média anual de reserva (5,226). Nesse caso `data`, `atualizadoEm` e `diasDeAtraso` vêm `null`.
 
 O simulador usa a **média anual climatológica** da NASA POWER para São Luís (2001–2025), também guardada em cache por 30 dias.
 
@@ -514,6 +516,9 @@ Campos que a API não conhece são recusados com `400`. Por exemplo, o front **n
 ## 🗃️ Dados e Conteúdo
 
 - **Dados de exemplo** (ilustrativos): 12 bairros de São Luís, 6 aparelhos e 3 escolas fictícias com os códigos de turma `SOL2026`, `VENTO26` e `LUZ2026`.
+- **Escolas reais** (`supabase/seeds/escolas.sql`): a lista entra em JSON entre os marcadores `$lista$[` e `]$lista$`, um objeto por escola: `{ "nome": "...", "bairro": "...", "codigo_inep": "21xxxxxx" }`. O `codigo_inep` (8 dígitos do Censo Escolar) é opcional, mas evita duplicar a escola. Bairros que ainda não existem são criados. Cada escola nova ganha um **código de turma aleatório** de 8 caracteres (sem 0, O, 1 e I), que não muda ao rodar o seed de novo. Com a lista preenchida, as 3 escolas fictícias ficam inativas e perdem o código.
+  - Aplicar: `npx supabase db query --linked -f supabase/seeds/escolas.sql`.
+  - Códigos para os professores (só com a chave de serviço): `npx supabase db query --linked "select b.nome as bairro, e.nome, e.codigo_turma from escolas e join bairros b on b.id = e.bairro_id where e.ativa order by 1, 2"`.
 - **Conteúdo** (5 trilhas, 18 lições, 20 perguntas e 2 missões): revisado em 2026-10-17. Os números das lições são **estimativas didáticas** e usam as mesmas constantes do simulador (`src/lib/config.ts`).
 - **Mapa** (14 pontos): os **10 pontos de coleta são locais reais** de São Luís (ecopontos da Prefeitura, a Central de Logística Reversa da Vila Isabel e a UFMA), conferidos em 2026-10-17, com o que cada um recebe e o horário na descrição. Os 2 pontos solares e as 2 ações ainda são ilustrativos e não correspondem a locais reais.
 
