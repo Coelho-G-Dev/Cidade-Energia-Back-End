@@ -188,7 +188,7 @@ describe("simular — modo aparelhos", () => {
     expect(r.economiaHabitosMensal).toBe(55.74);
     expect(r.comoCalculamos.economiaHabitos).toBe(
       "Mudança de hábitos, sem investimento: usar o ar-condicionado 1 hora a menos por dia, tomar banhos 10 minutos mais curtos por dia," +
-        " abrir a geladeira só quando precisar, sem guardar comida quente, desligar a TV quando ninguém estiver assistindo," +
+        " abrir a geladeira só quando precisar, desligar a TV quando ninguém estiver assistindo," +
         " apagar as luzes de cômodos vazios e desligar o ventilador ao sair do cômodo. São 68 kWh a menos por mês × R$ 0,82 por kWh.",
     );
   });

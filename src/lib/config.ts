@@ -12,7 +12,7 @@ export type RegraEconomia = { dica: string } & ({ reducaoHorasDia: number } | { 
 export const REGRAS_ECONOMIA: Readonly<Record<string, RegraEconomia>> = {
   ar_condicionado: { reducaoHorasDia: 1, dica: "Usar o ar-condicionado 1 hora a menos por dia" },
   chuveiro: { reducaoHorasDia: 10 / 60, dica: "Tomar banhos 10 minutos mais curtos por dia" },
-  geladeira: { reducaoPercentual: 0.1, dica: "Abrir a geladeira só quando precisar, sem guardar comida quente" },
+  geladeira: { reducaoPercentual: 0.1, dica: "Abrir a geladeira só quando precisar" },
   tv: { reducaoHorasDia: 1, dica: "Desligar a TV quando ninguém estiver assistindo" },
   lampada_led: { reducaoHorasDia: 1, dica: "Apagar as luzes de cômodos vazios" },
   ventilador: { reducaoHorasDia: 1, dica: "Desligar o ventilador ao sair do cômodo" },

@@ -298,7 +298,7 @@ Dicas de hábito do modo aparelhos (estimativas didáticas, nunca além do uso i
 |---|---|---|
 | `ar_condicionado` | Usar o ar-condicionado 1 hora a menos por dia | 1 h a menos por dia |
 | `chuveiro` | Tomar banhos 10 minutos mais curtos por dia | 10 min a menos por dia |
-| `geladeira` | Abrir a geladeira só quando precisar, sem guardar comida quente | 10% a menos do consumo |
+| `geladeira` | Abrir a geladeira só quando precisar | 10% a menos do consumo |
 | `tv` | Desligar a TV quando ninguém estiver assistindo | 1 h a menos por dia |
 | `lampada_led` | Apagar as luzes de cômodos vazios | 1 h a menos por dia, por lâmpada |
 | `ventilador` | Desligar o ventilador ao sair do cômodo | 1 h a menos por dia |
