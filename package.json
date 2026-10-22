@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "verificar:banco": "node scripts/verificar-banco.mjs",
     "indexar": "tsx --conditions=react-server scripts/indexar.ts",
-    "limpar:anonimos": "node scripts/limpar-anonimos.mjs"
+    "limpar:anonimos": "node scripts/limpar-anonimos.mjs",
+    "calibrar:tutor": "tsx --conditions=react-server scripts/calibrar-tutor.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

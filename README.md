@@ -553,7 +553,7 @@ Campos que a API não conhece são recusados com `400`. Por exemplo, o front **n
 ## 🧪 Testes e Verificação
 
 ```bash
-npm test                  # 296 testes Vitest, sem banco e sem APIs externas
+npm test                  # 297 testes Vitest, sem banco e sem APIs externas
 npx tsc --noEmit          # tipos
 npm run lint              # ESLint
 npm run verificar:banco   # checagens no Supabase real
@@ -580,6 +580,7 @@ API_URL=https://cidade-energia-back-end.vercel.app npm run verificar:banco
 | `npm run indexar` | Divide as lições em trechos, gera os embeddings no Gemini e regrava `documentos_rag` |
 | `npm run indexar -- --simular` | Só mostra os trechos, sem chamar o Gemini nem gravar no banco |
 | `npm run verificar:banco` | Confere o banco e as permissões no Supabase real (e as rotas, com `API_URL`) |
+| `npm run calibrar:tutor` | Mede, com perguntas de exemplo, que limiar de similaridade do tutor acerta a lição sem puxar lição para perguntas fora do tema (só lê; não muda o `config.ts`) |
 | `npm run limpar:anonimos` | Lista os anônimos sem primeiro nome e sem atividade há 30 dias (`--dias=N` muda a janela). Só apaga com `--apagar` |
 | `npx supabase migration new <nome>` | Cria uma migration |
 | `npx supabase db push` | Aplica as migrations no projeto ligado (`--include-seed` para os seeds novos) |
@@ -598,7 +599,7 @@ API_URL=https://cidade-energia-back-end.vercel.app npm run verificar:banco
 - **Limite nas simulações:** fica no banco (`consumir_limite_publico`), porque cada chamada na Vercel pode rodar numa instância diferente. A chave é um HMAC do IP ou o ID do perfil. Se o banco falhar, a rota segue sem limite e registra o erro.
 - **Estimativas:** todas as constantes do simulador ficam em `src/lib/config.ts`, com a fonte em `FONTES`. A tarifa padrão é a B1 da Equatorial Maranhão sem tributos (R$ 0,8888/kWh), dado público homologado pela ANEEL.
 - **NASA POWER:** a irradiação diária fica em cache por 6 horas, e a climatologia, por 30 dias; uma falha também conta como tentativa, para não sobrecarregar a API; se a NASA e o cache falharem, a API usa a média anual do config.
-- **Tutor:** embeddings `gemini-embedding-2` de 768 dimensões, no pgvector com índice HNSW; um trecho entra no contexto se tiver similaridade de pelo menos 0,62 e ficar a no máximo 0,08 do mais parecido (valores calibrados com perguntas reais); a geração usa o modelo de `GEMINI_MODEL`, chamado por REST, sem SDK.
+- **Tutor:** embeddings `gemini-embedding-2` de 768 dimensões, no pgvector com índice HNSW; um trecho entra no contexto se tiver similaridade de pelo menos 0,64 e ficar a no máximo 0,08 do mais parecido (valores calibrados com perguntas reais); a geração usa o modelo de `GEMINI_MODEL`, chamado por REST, sem SDK.
 - **Privacidade no tutor:** o texto das conversas não vai para o banco nem para os logs. `tutor_uso` guarda só o momento de cada mensagem, para o limite por hora.
 - **Erros padronizados:** todas as respostas de erro, inclusive 404 e 405, seguem `{ "erro": { "codigo", "mensagem" } }`.
 

@@ -83,11 +83,17 @@ describe("regras puras do tutor", () => {
 
   it("descarta trechos abaixo da similaridade mínima e ordena", () => {
     const r = selecionarRelevantes([
-      { licaoId: "a", trecho: "a", similaridade: 0.63 },
+      { licaoId: "a", trecho: "a", similaridade: 0.66 },
       { licaoId: "b", trecho: "b", similaridade: 0.4 },
-      { licaoId: "c", trecho: "c", similaridade: 0.65 },
+      { licaoId: "c", trecho: "c", similaridade: 0.68 },
     ]);
     expect(r.map((t) => t.licaoId)).toEqual(["c", "a"]);
+  });
+
+  it("calibração de 22/10: a pergunta informal mais fraca entra e a fora do tema mais forte fica de fora", () => {
+    expect(selecionarRelevantes([{ licaoId: "descarte", trecho: "a", similaridade: 0.661 }])).toHaveLength(1);
+    expect(selecionarRelevantes([{ licaoId: "conta", trecho: "a", similaridade: 0.609 }])).toEqual([]);
+    expect(selecionarRelevantes([{ licaoId: "conta", trecho: "a", similaridade: 0.63 }])).toEqual([]);
   });
 
   it("descarta trechos muito abaixo do mais parecido", () => {
