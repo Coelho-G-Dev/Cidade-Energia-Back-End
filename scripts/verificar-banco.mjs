@@ -106,6 +106,8 @@ async function verificarBanco() {
   checar("escola escolhida direto fica sem verificação", atualiza.data?.[0]?.escola_verificada === false);
   const verificaDireto = await A.cliente.from("perfis").update({ escola_verificada: true }).eq("id", A.id).select();
   checar("NÃO liga escola_verificada direto", Boolean(verificaDireto.error));
+  const testeDireto = await A.cliente.from("perfis").update({ eh_teste: true }).eq("id", A.id).select();
+  checar("NÃO liga eh_teste direto", Boolean(testeDireto.error));
   const outraTurma = await A.cliente.rpc("confirmar_turma", { p_codigo: TURMA_2 });
   checar("código de outra escola NÃO verifica", outraTurma.data === false, outraTurma.error?.message);
   const confirmaAnon = await anon.rpc("confirmar_turma", { p_codigo: TURMA_1 });
@@ -360,9 +362,23 @@ async function verificarRotasDia2({ A, B }) {
   checar("ranking não muda com a repetição", (await pontosEscola()) === escolaDepois);
 
   const errada = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p2.id, opcao: (gabarito.get(p2.id) + 1) % p2.opcoes.length } });
-  checar("resposta errada → sem explicação e nova tentativa em 24 h", errada.status === 200 && !errada.corpo.correta && errada.corpo.explicacao === null && errada.corpo.proximaTentativaEm);
+  checar(
+    "resposta errada → mostra a opção certa e a explicação, sem pontos",
+    errada.status === 200 && !errada.corpo.correta && errada.corpo.opcaoCorreta === gabarito.get(p2.id) &&
+      typeof errada.corpo.explicacao === "string" && errada.corpo.explicacao.length > 0 && errada.corpo.pontosGanhos === 0,
+    JSON.stringify(errada.corpo),
+  );
+  const escolaAntesDoTreino = await pontosEscola();
   const corrigida = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p2.id, opcao: gabarito.get(p2.id) } });
-  checar("responder logo depois de errar → 429 sem revelar a correção", corrigida.status === 429 && corrigida.corpo.erro?.codigo === "AGUARDE_NOVA_TENTATIVA" && !("correta" in corrigida.corpo), JSON.stringify(corrigida.corpo));
+  checar(
+    "responder certo depois de errar → treino: 200, sem pontos e sem 429",
+    corrigida.status === 200 && corrigida.corpo.correta && corrigida.corpo.pontosGanhos === 0 && !corrigida.corpo.tentativaPontuavel,
+    JSON.stringify(corrigida.corpo),
+  );
+  checar("o treino não muda o ranking", (await pontosEscola()) === escolaAntesDoTreino);
+  const quizDepois = await chamar("GET", `/api/licoes/${l2.id}/quiz`, { token: A.token });
+  const p2Depois = quizDepois.corpo.perguntas.find((p) => p.id === p2.id);
+  checar("o quiz guarda o erro da primeira tentativa e não deixa pontuar de novo", p2Depois?.acertou === false && p2Depois?.podePontuar === false, JSON.stringify(p2Depois));
   const foraDaLista = await chamar("POST", "/api/quiz/responder", { token: A.token, body: { perguntaId: p1.id, opcao: 4 } });
   checar("opção fora da lista → 400", foraDaLista.status === 400);
 
@@ -657,6 +673,17 @@ async function verificarFluxoCompleto() {
     resumo.status === 200 && resumo.corpo.pontos === 35 && resumo.corpo.escola?.pontos === depoisQuiz && resumo.corpo.escola?.posicao >= 1,
     JSON.stringify(resumo.corpo),
   );
+
+  const pontosBairro = async () =>
+    (await chamar("GET", "/api/rankings?tipo=bairros")).corpo.find((b) => b.id === bairro.id)?.pontos ?? 0;
+  const bairroAntes = await pontosBairro();
+  const marcar = await admin.from("perfis").update({ eh_teste: true }).eq("id", C.id);
+  const [escolaDepois, bairroDepois] = [await pontosEscola(), await pontosBairro()];
+  checar(
+    `5. marcado como teste, C sai dos rankings (escola ${depoisQuiz} → ${escolaDepois}, bairro ${bairroAntes} → ${bairroDepois})`,
+    !marcar.error && escolaDepois === depoisQuiz - 35 && bairroDepois === bairroAntes - 35,
+    marcar.error?.message,
+  );
 }
 
 try {
@@ -674,8 +701,14 @@ try {
   falhas++;
   console.error(`\n✘ Erro: ${e.message}`);
 } finally {
-  for (const id of criados) await admin.auth.admin.deleteUser(id);
-  console.log(`\nUsuários de teste removidos: ${criados.length}`);
+  const restantes = [];
+  for (const id of criados) {
+    const { error } = await admin.auth.admin.deleteUser(id);
+    if (error) restantes.push(id);
+  }
+  if (restantes.length) await admin.from("perfis").update({ eh_teste: true }).in("id", restantes);
+  console.log(`\nUsuários de teste removidos: ${criados.length - restantes.length}`);
+  if (restantes.length) console.log(`Não removidos, marcados como teste (fora dos rankings): ${restantes.join(", ")}`);
   console.log(falhas === 0 ? "TUDO OK" : `${falhas} verificação(ões) falharam`);
   process.exit(falhas === 0 ? 0 : 1);
 }

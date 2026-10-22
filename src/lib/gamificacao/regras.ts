@@ -1,6 +1,5 @@
 import {
   FUSO_SAO_LUIS,
-  HORAS_ENTRE_TENTATIVAS_QUIZ,
   MISSAO_AR_CONDICIONADO,
   MISSAO_DESCARTE,
   PONTOS_BAIRRO_UNIDO,
@@ -72,22 +71,10 @@ export function licaoPendenteAntes(
   return pendente ? { id: pendente.id, titulo: pendente.titulo } : null;
 }
 
-export type RespostaAnterior = { correta: boolean; tentativaEm: Date } | null;
-export type DecisaoTentativa = { pontuavel: boolean; proximaTentativaEm: Date | null };
+export type RespostaAnterior = { correta: boolean } | null;
 
-const MS_POR_HORA = 3_600_000;
-
-export function avaliarTentativa(
-  anterior: RespostaAnterior,
-  agora: Date,
-  horasEntreTentativas: number = HORAS_ENTRE_TENTATIVAS_QUIZ,
-): DecisaoTentativa {
-  if (!anterior) return { pontuavel: true, proximaTentativaEm: null };
-  if (anterior.correta) return { pontuavel: false, proximaTentativaEm: null };
-  const liberadaEm = new Date(anterior.tentativaEm.getTime() + horasEntreTentativas * MS_POR_HORA);
-  return agora >= liberadaEm
-    ? { pontuavel: true, proximaTentativaEm: null }
-    : { pontuavel: false, proximaTentativaEm: liberadaEm };
+export function tentativaPontuavel(anterior: RespostaAnterior): boolean {
+  return anterior === null;
 }
 
 const formatoDia = new Intl.DateTimeFormat("en-CA", {

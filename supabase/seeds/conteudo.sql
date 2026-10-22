@@ -57,7 +57,7 @@ Uma pessoa pedalando com esforço moderado gera algo entre 50 e 150 W por alguns
 
 Uma placa solar de 550 W, no sol forte do meio-dia, entrega energia parecida com a de várias pessoas pedalando, sem cansar e sem fazer barulho.
 
-Ao terminar, toque em **Concluir** para registrar a atividade.$md$),
+Ao terminar, toque em **Ir para a próxima lição** para registrar a atividade.$md$),
 
   ('energia-solar-em-sao-luis', 4, 'Quantas placas para a minha casa?', 'texto', $md$Dá para fazer a conta com três números:
 

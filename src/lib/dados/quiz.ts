@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { FUSO_SAO_LUIS, HORAS_ENTRE_TENTATIVAS_QUIZ } from "@/lib/config";
 import { registrarEvento, SEM_EVENTO, type ResultadoEvento } from "@/lib/dados/pontos";
-import { avaliarTentativa, type RespostaAnterior } from "@/lib/gamificacao/regras";
+import { tentativaPontuavel, type RespostaAnterior } from "@/lib/gamificacao/regras";
 import { ErroApi, erroDoBanco, naoEncontrado } from "@/lib/http/erros";
 
 export type PerguntaDoQuiz = {
@@ -12,12 +11,11 @@ export type PerguntaDoQuiz = {
   jaRespondida: boolean;
   acertou: boolean | null;
   podePontuar: boolean;
-  proximaTentativaEm: string | null;
 };
 
 export type Quiz = { licaoId: string; licaoConcluida: boolean; perguntas: PerguntaDoQuiz[] };
 
-type LinhaResposta = { pergunta_id: string; correta: boolean; tentativa_em: string };
+type LinhaResposta = { pergunta_id: string; correta: boolean };
 
 async function licaoFoiConcluida(supabase: SupabaseClient, perfilId: string, licaoId: string): Promise<boolean> {
   const { data, error } = await supabase
@@ -30,15 +28,9 @@ async function licaoFoiConcluida(supabase: SupabaseClient, perfilId: string, lic
   return Boolean(data);
 }
 
-const paraAnterior = (r: { correta: boolean; tentativa_em: string } | null | undefined): RespostaAnterior =>
-  r ? { correta: r.correta, tentativaEm: new Date(r.tentativa_em) } : null;
+const paraAnterior = (r: { correta: boolean } | null | undefined): RespostaAnterior => (r ? { correta: r.correta } : null);
 
-export async function obterQuiz(
-  supabase: SupabaseClient,
-  licaoId: string,
-  perfilId: string | null,
-  agora: Date,
-): Promise<Quiz> {
+export async function obterQuiz(supabase: SupabaseClient, licaoId: string, perfilId: string | null): Promise<Quiz> {
   const { data: licao, error } = await supabase.from("licoes").select("id").eq("id", licaoId).maybeSingle();
   if (error) throw erroDoBanco(error);
   if (!licao) throw naoEncontrado("LICAO_NAO_ENCONTRADA", "Lição não encontrada.");
@@ -57,7 +49,7 @@ export async function obterQuiz(
   if (perfilId && linhas.length > 0) {
     const { data, error: erroRespostas } = await supabase
       .from("respostas")
-      .select("pergunta_id, correta, tentativa_em")
+      .select("pergunta_id, correta")
       .eq("perfil_id", perfilId)
       .in(
         "pergunta_id",
@@ -72,7 +64,6 @@ export async function obterQuiz(
     licaoConcluida,
     perguntas: linhas.map((p) => {
       const resposta = respostas.get(p.id);
-      const decisao = avaliarTentativa(paraAnterior(resposta), agora);
       return {
         id: p.id,
         ordem: p.ordem,
@@ -80,8 +71,7 @@ export async function obterQuiz(
         opcoes: p.opcoes,
         jaRespondida: Boolean(resposta),
         acertou: resposta ? resposta.correta : null,
-        podePontuar: licaoConcluida && decisao.pontuavel,
-        proximaTentativaEm: decisao.proximaTentativaEm?.toISOString() ?? null,
+        podePontuar: licaoConcluida && tentativaPontuavel(paraAnterior(resposta)),
       };
     }),
   };
@@ -89,58 +79,25 @@ export async function obterQuiz(
 
 export type RespostaDoQuiz = ResultadoEvento & {
   correta: boolean;
-  explicacao: string | null;
+  opcaoCorreta: number;
+  explicacao: string;
   tentativaPontuavel: boolean;
-  proximaTentativaEm: string | null;
 };
 
-const formatoNovaTentativa = new Intl.DateTimeFormat("pt-BR", {
-  timeZone: FUSO_SAO_LUIS,
-  day: "2-digit",
-  month: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-export function mensagemNovaTentativa(liberadaEm: Date | null): string {
-  const base = "Você já respondeu esta pergunta.";
-  if (!liberadaEm) return `${base} Tente de novo mais tarde.`;
-  const p = Object.fromEntries(formatoNovaTentativa.formatToParts(liberadaEm).map((parte) => [parte.type, parte.value]));
-  return `${base} Uma nova tentativa será liberada em ${p.day}/${p.month} às ${p.hour}:${p.minute}.`;
-}
-
-async function gravarTentativa(
+async function gravarPrimeiraTentativa(
   admin: SupabaseClient,
   perfilId: string,
   perguntaId: string,
   opcao: number,
   correta: boolean,
   agora: Date,
-  anterior: RespostaAnterior,
 ): Promise<boolean> {
-  const linha = { opcao, correta, tentativa_em: agora.toISOString() };
-
-  if (!anterior) {
-    const { data, error } = await admin
-      .from("respostas")
-      .upsert(
-        { perfil_id: perfilId, pergunta_id: perguntaId, ...linha },
-        { onConflict: "perfil_id,pergunta_id", ignoreDuplicates: true },
-      )
-      .select("pergunta_id");
-    if (error) throw erroDoBanco(error);
-    return (data ?? []).length > 0;
-  }
-
-  const limite = new Date(agora.getTime() - HORAS_ENTRE_TENTATIVAS_QUIZ * 3_600_000).toISOString();
   const { data, error } = await admin
     .from("respostas")
-    .update(linha)
-    .eq("perfil_id", perfilId)
-    .eq("pergunta_id", perguntaId)
-    .eq("correta", false)
-    .lte("tentativa_em", limite)
+    .upsert(
+      { perfil_id: perfilId, pergunta_id: perguntaId, opcao, correta, tentativa_em: agora.toISOString() },
+      { onConflict: "perfil_id,pergunta_id", ignoreDuplicates: true },
+    )
     .select("pergunta_id");
   if (error) throw erroDoBanco(error);
   return (data ?? []).length > 0;
@@ -171,34 +128,25 @@ export async function responderPergunta(
 
   const existente = await admin
     .from("respostas")
-    .select("correta, tentativa_em")
+    .select("correta")
     .eq("perfil_id", perfilId)
     .eq("pergunta_id", perguntaId)
     .maybeSingle();
   if (existente.error) throw erroDoBanco(existente.error);
   const anterior = paraAnterior(existente.data);
 
-  const decisao = avaliarTentativa(anterior, agora);
-  const registrada = decisao.pontuavel
-    ? await gravarTentativa(admin, perfilId, perguntaId, opcao, correta, agora, anterior)
+  const registrada = tentativaPontuavel(anterior)
+    ? await gravarPrimeiraTentativa(admin, perfilId, perguntaId, opcao, correta, agora)
     : false;
 
-  if (!registrada && !anterior?.correta) {
-    throw new ErroApi(
-      429,
-      "AGUARDE_NOVA_TENTATIVA",
-      mensagemNovaTentativa(decisao.pontuavel ? null : decisao.proximaTentativaEm),
-    );
-  }
-
-  const estadoFinal: RespostaAnterior = registrada ? { correta, tentativaEm: agora } : anterior;
-  const evento = estadoFinal?.correta ? await registrarEvento(admin, perfilId, "resposta_correta", perguntaId) : SEM_EVENTO;
+  const acertouNaPrimeira = registrada ? correta : anterior?.correta === true;
+  const evento = acertouNaPrimeira ? await registrarEvento(admin, perfilId, "resposta_correta", perguntaId) : SEM_EVENTO;
 
   return {
     correta,
-    explicacao: correta ? pergunta.explicacao : null,
+    opcaoCorreta: pergunta.indice_correto,
+    explicacao: pergunta.explicacao,
     tentativaPontuavel: registrada,
-    proximaTentativaEm: avaliarTentativa(estadoFinal, agora).proximaTentativaEm?.toISOString() ?? null,
     ...evento,
   };
 }

@@ -24,14 +24,27 @@ export type EntradaSimulacao =
 
 export type Peso = { aparelho: string; percentual: number };
 
+export type ComoCalculamos = {
+  economiaHabitos: string;
+  economiaSolar: string;
+  custoSistemaSolar: string;
+  retornoSolar: string;
+};
+
 export type ResultadoSimulacao = {
   consumoKwh: number;
   gastoMensal: number;
+  economiaHabitosMensal: number;
+  economiaSolarMensal: number;
+  kwhGeradoMes: number;
+  custoSistemaSolar: number;
+  retornoSolarAnos: number;
   economiaMensal: number;
   placas: number;
   retornoAnos: number;
   co2EvitadoKgAno: number;
   pesos: Peso[];
+  comoCalculamos: ComoCalculamos;
 };
 
 export type Parametros = {
@@ -42,7 +55,7 @@ export type Parametros = {
   irradiacao: number;
   fatorEmissao: number;
   percentualEconomiaPadrao: number;
-  regrasEconomia: Readonly<Record<string, { reducaoHorasDia: number }>>;
+  regrasEconomia: Readonly<Record<string, { reducaoHorasDia: number; dica?: string }>>;
 };
 
 export const PARAMETROS_PADRAO: Parametros = {
@@ -149,11 +162,58 @@ export function co2EvitadoKgAno(kwhGeradoMes: number, fatorEmissao: number): num
   return kwhGeradoMes * 12 * fatorEmissao;
 }
 
+const reais = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const numero = (valor: number, casas = 1) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: casas }).format(valor);
+const minusculaInicial = (texto: string) => texto.charAt(0).toLowerCase() + texto.slice(1);
+const porKwh = (tarifa: number) => `R$ ${numero(tarifa, 4)} por kWh`;
+
+type Habitos =
+  | { modo: "conta"; percentual: number; gastoMensal: number }
+  | { modo: "aparelhos"; dicas: string[]; kwhEconomizados: number; tarifa: number };
+
+type Valores = {
+  habitos: Habitos;
+  placas: number;
+  kwhGeradoMes: number;
+  consumoKwh: number;
+  tarifa: number;
+  custoSistema: number;
+  economiaSolarMensal: number;
+  retornoSolarAnos: number;
+};
+
+export function explicarCalculo(v: Valores, p: Parametros = PARAMETROS_PADRAO): ComoCalculamos {
+  const h = v.habitos;
+  const economiaHabitos =
+    h.modo === "conta"
+      ? `Meta de ${numero(h.percentual * 100)}% da conta com mudança de hábitos, sem investimento: ${reais.format(h.gastoMensal)} × ${numero(h.percentual * 100)}%.`
+      : h.dicas.length === 0
+        ? "Nenhum aparelho da lista tem uma dica de hábito no simulador, então esta economia fica em zero."
+        : `Mudança de hábitos, sem investimento: ${h.dicas.map(minusculaInicial).join(" e ")}. São ${numero(h.kwhEconomizados)} kWh a menos por mês × ${porKwh(h.tarifa)}.`;
+
+  const porPlaca = v.kwhGeradoMes / v.placas;
+  const total = v.placas === 1 ? "" : ` ${v.placas} placas geram ${numero(v.kwhGeradoMes)} kWh.`;
+  return {
+    economiaHabitos,
+    economiaSolar:
+      `Cada placa de ${numero(p.potenciaPlacaKwp * 1000, 0)} W gera cerca de ${numero(porPlaca)} kWh por mês com o sol de São Luís ` +
+      `(${numero(p.irradiacao, 2)} kWh/m² por dia × ${numero(p.potenciaPlacaKwp, 2)} kWp × ${numero(p.fatorPerdas, 2)} × ${DIAS_POR_MES} dias).` +
+      `${total} A economia é a energia gerada, até o seu consumo de ${numero(v.consumoKwh)} kWh, × ${porKwh(v.tarifa)}.`,
+    custoSistemaSolar:
+      `${v.placas} × ${numero(p.potenciaPlacaKwp, 2)} kWp × ${reais.format(p.custoPorKwp)} por kWp instalado = ` +
+      `${reais.format(v.custoSistema)} (preço médio de mercado, estimativa).`,
+    retornoSolar:
+      `${reais.format(v.custoSistema)} ÷ (${reais.format(v.economiaSolarMensal)} × 12 meses) = ${numero(v.retornoSolarAnos)} anos. ` +
+      "Usa a economia com energia solar, não a de hábitos.",
+  };
+}
+
 export function simular(entrada: EntradaSimulacao, p: Parametros = PARAMETROS_PADRAO): ResultadoSimulacao {
   let consumoKwh: number;
   let tarifa: number;
   let gastoMensal: number;
-  let economiaMensal: number;
+  let economiaHabitosMensal: number;
+  let habitos: Habitos;
   let pesos: Peso[];
 
   if (entrada.modo === "conta") {
@@ -163,7 +223,8 @@ export function simular(entrada: EntradaSimulacao, p: Parametros = PARAMETROS_PA
     consumoKwh = entrada.consumoKwh;
     tarifa = tarifaEfetiva(consumoKwh, entrada.valorConta, p.tarifaPadrao);
     gastoMensal = entrada.valorConta ?? consumoKwh * tarifa;
-    economiaMensal = gastoMensal * p.percentualEconomiaPadrao;
+    economiaHabitosMensal = gastoMensal * p.percentualEconomiaPadrao;
+    habitos = { modo: "conta", percentual: p.percentualEconomiaPadrao, gastoMensal };
     pesos = [];
   } else {
     if (entrada.itens.length === 0) throw new ErroCalculo("Informe pelo menos um aparelho.");
@@ -176,7 +237,10 @@ export function simular(entrada: EntradaSimulacao, p: Parametros = PARAMETROS_PA
     consumoKwh = consumos.reduce((soma, c) => soma + c.kwh, 0);
     tarifa = p.tarifaPadrao;
     gastoMensal = consumoKwh * tarifa;
-    economiaMensal = economiaKwhPorRegras(entrada.itens, p.regrasEconomia) * tarifa;
+    const kwhEconomizados = economiaKwhPorRegras(entrada.itens, p.regrasEconomia);
+    economiaHabitosMensal = kwhEconomizados * tarifa;
+    const dicas = [...new Set(entrada.itens.flatMap((i) => p.regrasEconomia[i.codigo]?.dica ?? []))];
+    habitos = { modo: "aparelhos", dicas, kwhEconomizados, tarifa };
     pesos = calcularPesos(consumos);
   }
 
@@ -185,14 +249,25 @@ export function simular(entrada: EntradaSimulacao, p: Parametros = PARAMETROS_PA
   const kwhGeradoMes = placas * geracaoPlacaDia * DIAS_POR_MES;
   const custoSistema = placas * p.potenciaPlacaKwp * p.custoPorKwp;
   const economiaSolarMensal = Math.min(kwhGeradoMes, consumoKwh) * tarifa;
+  const retornoSolarAnos = arredondar(retornoAnos(custoSistema, economiaSolarMensal), 1);
+  const habitosArredondado = arredondar(economiaHabitosMensal, 2);
 
   return {
     consumoKwh: arredondar(consumoKwh, 1),
     gastoMensal: arredondar(gastoMensal, 2),
-    economiaMensal: arredondar(economiaMensal, 2),
+    economiaHabitosMensal: habitosArredondado,
+    economiaSolarMensal: arredondar(economiaSolarMensal, 2),
+    kwhGeradoMes: arredondar(kwhGeradoMes, 1),
+    custoSistemaSolar: arredondar(custoSistema, 2),
+    retornoSolarAnos,
+    economiaMensal: habitosArredondado,
     placas,
-    retornoAnos: arredondar(retornoAnos(custoSistema, economiaSolarMensal), 1),
+    retornoAnos: retornoSolarAnos,
     co2EvitadoKgAno: arredondar(co2EvitadoKgAno(kwhGeradoMes, p.fatorEmissao), 1),
     pesos,
+    comoCalculamos: explicarCalculo(
+      { habitos, placas, kwhGeradoMes, consumoKwh, tarifa, custoSistema, economiaSolarMensal, retornoSolarAnos },
+      p,
+    ),
   };
 }

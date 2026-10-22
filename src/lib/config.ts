@@ -50,11 +50,14 @@ export const PONTOS_POR_ORIGEM = {
   pedale_concluido: 15,
 } as const;
 
-export const HORAS_ENTRE_TENTATIVAS_QUIZ = 24;
 export const LIMITE_SIMULACAO_PUBLICA_POR_MINUTO = 600;
 export const LIMITE_PREVIA_POR_PERFIL = 120;
 export const JANELA_LIMITE_PREVIA_POR_PERFIL = "10 minutes";
 export const PONTOS_BAIRRO_UNIDO = 500;
+
+export const CACHE_CONTEUDO_SEGUNDOS = 300;
+export const CACHE_SOL_DE_HOJE_SEGUNDOS = 600;
+export const CACHE_DOCUMENTACAO_SEGUNDOS = 3600;
 
 export const TRILHA_ENERGIA_SOLAR = "energia-solar-em-sao-luis";
 export const TRILHA_CONTA_DE_LUZ = "entendendo-a-sua-conta-de-luz";

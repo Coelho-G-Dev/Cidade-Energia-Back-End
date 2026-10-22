@@ -10,6 +10,12 @@ Referência de todas as rotas, com um exemplo de requisição e de resposta. A e
 - **Corpo:** JSON (`Content-Type: application/json`). Campos desconhecidos são recusados com `400`.
 - **Erros:** sempre `{ "erro": { "codigo": string, "mensagem": string } }`. A lista completa está em [Erros](#erros).
 - Os IDs dos exemplos são fictícios.
+- **Cache:** as rotas GET de conteúdo respondem `Cache-Control: public, s-maxage=300, stale-while-revalidate=3600`
+  **sem token**, e a CDN da Vercel guarda a resposta por 5 minutos. Isso vale para trilhas, lições, quiz, bairros,
+  escolas, aparelhos e mapa. O Sol de hoje fica 10 minutos, e `/api/openapi` e `/api/docs`, 1 hora. **Com token**, a
+  resposta vem `private, no-store`, porque traz o progresso do estudante, e nunca é guardada. Todas as respostas têm
+  `Vary: Origin, Authorization`. Rankings, perfil, simulações, missões, quiz respondido e tutor não são guardados.
+  Depois de rodar um seed de conteúdo, as respostas antigas podem aparecer por até 5 minutos.
 
 ## Resumo
 
@@ -216,11 +222,22 @@ Content-Type: application/json
 {
   "consumoKwh": 380,
   "gastoMensal": 312,
+  "economiaHabitosMensal": 31.2,
+  "economiaSolarMensal": 312,
+  "kwhGeradoMes": 413.9,
+  "custoSistemaSolar": 9372,
+  "retornoSolarAnos": 2.5,
   "economiaMensal": 31.2,
   "placas": 6,
   "retornoAnos": 2.5,
   "co2EvitadoKgAno": 191.2,
   "pesos": [],
+  "comoCalculamos": {
+    "economiaHabitos": "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
+    "economiaSolar": "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). 6 placas geram 413,9 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh.",
+    "custoSistemaSolar": "6 × 0,55 kWp × R$ 2.840,00 por kWp instalado = R$ 9.372,00 (preço médio de mercado, estimativa).",
+    "retornoSolar": "R$ 9.372,00 ÷ (R$ 312,00 × 12 meses) = 2,5 anos. Usa a economia com energia solar, não a de hábitos."
+  },
   "simulacaoId": null,
   "pontosGanhos": 0,
   "conquistasNovas": []
@@ -244,16 +261,41 @@ Content-Type: application/json
 {
   "consumoKwh": 82.5,
   "gastoMensal": 73.33,
+  "economiaHabitosMensal": 24.44,
+  "economiaSolarMensal": 73.33,
+  "kwhGeradoMes": 138,
+  "custoSistemaSolar": 3124,
+  "retornoSolarAnos": 3.6,
   "economiaMensal": 24.44,
   "placas": 2,
   "retornoAnos": 3.6,
   "co2EvitadoKgAno": 63.7,
   "pesos": [{ "aparelho": "Chuveiro elétrico", "percentual": 100 }],
+  "comoCalculamos": {
+    "economiaHabitos": "Mudança de hábitos, sem investimento: tomar banhos 10 minutos mais curtos por dia. São 27,5 kWh a menos por mês × R$ 0,8888 por kWh.",
+    "economiaSolar": "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). 2 placas geram 138 kWh. A economia é a energia gerada, até o seu consumo de 82,5 kWh, × R$ 0,8888 por kWh.",
+    "custoSistemaSolar": "2 × 0,55 kWp × R$ 2.840,00 por kWp instalado = R$ 3.124,00 (preço médio de mercado, estimativa).",
+    "retornoSolar": "R$ 3.124,00 ÷ (R$ 73,33 × 12 meses) = 3,6 anos. Usa a economia com energia solar, não a de hábitos."
+  },
   "simulacaoId": "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
   "pontosGanhos": 20,
   "conquistasNovas": [{ "slug": "primeira_simulacao", "nome": "Primeira simulação" }]
 }
 ```
+
+Como ler os campos:
+
+| Campo | O que é | Fórmula |
+|---|---|---|
+| `economiaHabitosMensal` | Economia mudando hábitos, sem investimento | modo conta: 10% do gasto; modo aparelhos: 1 h a menos de ar e 10 min a menos de banho por dia × tarifa |
+| `economiaSolarMensal` | Economia com as placas solares | mín(kWh gerado, consumo) × tarifa |
+| `kwhGeradoMes` | Energia gerada pelas placas | placas × irradiação × 0,55 kWp × 0,8 × 30 |
+| `custoSistemaSolar` | Custo do sistema instalado | placas × 0,55 kWp × R$ 2.840 |
+| `retornoSolarAnos` | Anos para as placas se pagarem | custo ÷ (economia solar × 12) |
+| `comoCalculamos` | Texto curto, com os números, para cada um dos 4 itens acima | — |
+| `economiaMensal`, `retornoAnos` | **Obsoletos**: iguais a `economiaHabitosMensal` e `retornoSolarAnos` | — |
+
+A tarifa é o valor da conta ÷ kWh quando ele é informado; senão, a tarifa padrão (R$ 0,8888/kWh).
 
 Erros: `400 ENTRADA_INVALIDA`, `400 JSON_INVALIDO`, `404 APARELHO_NAO_ENCONTRADO`, `429 LIMITE_DE_REQUISICOES` (só sem login).
 
@@ -297,14 +339,24 @@ Authorization: Bearer <token>
   "resultado": {
     "consumoKwh": 380,
     "gastoMensal": 312,
+    "economiaHabitosMensal": 31.2,
+    "economiaSolarMensal": null,
+    "kwhGeradoMes": null,
+    "custoSistemaSolar": null,
+    "retornoSolarAnos": 2.5,
     "economiaMensal": 31.2,
     "placas": 6,
     "retornoAnos": 2.5,
     "co2EvitadoKgAno": 191.2,
-    "pesos": []
+    "pesos": [],
+    "comoCalculamos": null
   }
 }
 ```
+
+`resultado` tem os mesmos campos de `POST /api/simulacoes`. Nas simulações salvas antes desta versão (como no
+exemplo), `economiaHabitosMensal` e `retornoSolarAnos` saem dos campos antigos, e `economiaSolarMensal`,
+`kwhGeradoMes`, `custoSistemaSolar` e `comoCalculamos` vêm `null`. Para tê-los, simule de novo.
 
 Erros: `401 NAO_AUTENTICADO`, `404 NENHUMA_SIMULACAO`.
 
@@ -360,6 +412,9 @@ Pergunta ao tutor.
   - `resposta`: até 1.500 caracteres;
   - **20 mensagens por hora** por usuário.
 - O servidor não grava o texto das conversas. Para manter o contexto, o front envia as últimas mensagens em `historico`.
+- Pelo token, o servidor inclui no contexto do modelo o bairro do estudante e o resumo da última simulação: consumo em
+  kWh, gasto do mês e o aparelho que mais pesa (só no modo aparelhos). O nome nunca vai para o modelo. Sem simulação,
+  ou se esses dados falharem, o tutor responde normalmente. O front não precisa enviar nada a mais.
 
 ```http
 POST /api/tutor
@@ -521,8 +576,7 @@ Authorization: Bearer <token>
       "opcoes": ["Porque fica perto da linha do Equador", "Porque é uma ilha", "Porque tem muitas praias"],
       "jaRespondida": true,
       "acertou": false,
-      "podePontuar": false,
-      "proximaTentativaEm": "2026-10-17T12:00:00.000Z"
+      "podePontuar": false
     }
   ]
 }
@@ -535,11 +589,12 @@ Erros: `400 ENTRADA_INVALIDA`, `404 LICAO_NAO_ENCONTRADA`.
 Corrige a resposta no servidor.
 
 - Só responde depois de concluir a lição da pergunta. Antes disso, a API responde `409 LICAO_NAO_CONCLUIDA`,
-  sem gravar a tentativa nem iniciar a espera de 24 horas.
-- A primeira tentativa vale 5 pontos se estiver certa.
-- Depois de um erro, uma nova tentativa só pontua 24 horas depois. Antes disso, a API responde
-  `429 AGUARDE_NOVA_TENTATIVA` e não corrige a resposta.
-- A `explicacao` só vem quando a resposta está certa; numa resposta errada ela vem `null`.
+  sem gravar a tentativa.
+- Só a primeira tentativa vale pontos: 5 se estiver certa.
+- As respostas seguintes são treino (`tentativaPontuavel: false`): a API corrige, sem pontos e sem mudar o
+  registro da primeira tentativa.
+- Certa ou errada, a resposta traz `opcaoCorreta` (índice da opção certa) e `explicacao`. Antes de responder,
+  nenhuma rota revela os dois.
 
 ```http
 POST /api/quiz/responder
@@ -549,19 +604,33 @@ Content-Type: application/json
 { "perguntaId": "f6a7b8c9-d0e1-4f2a-9b3c-4d5e6f708192", "opcao": 0 }
 ```
 
+Acertou na primeira tentativa:
+
 ```json
 {
   "correta": true,
+  "opcaoCorreta": 0,
   "explicacao": "Perto do Equador o sol chega mais 'em pé' o ano todo.",
   "tentativaPontuavel": true,
-  "proximaTentativaEm": null,
   "pontosGanhos": 5,
   "conquistasNovas": []
 }
 ```
 
-Erros: `400 ENTRADA_INVALIDA`, `401 NAO_AUTENTICADO`, `404 PERGUNTA_NAO_ENCONTRADA`, `409 LICAO_NAO_CONCLUIDA`,
-`429 AGUARDE_NOVA_TENTATIVA`.
+Errou na primeira tentativa:
+
+```json
+{
+  "correta": false,
+  "opcaoCorreta": 0,
+  "explicacao": "Perto do Equador o sol chega mais 'em pé' o ano todo.",
+  "tentativaPontuavel": true,
+  "pontosGanhos": 0,
+  "conquistasNovas": []
+}
+```
+
+Erros: `400 ENTRADA_INVALIDA`, `401 NAO_AUTENTICADO`, `404 PERGUNTA_NAO_ENCONTRADA`, `409 LICAO_NAO_CONCLUIDA`.
 
 ### POST /api/pedale/concluir
 
@@ -722,7 +791,6 @@ Erros: `400 ENTRADA_INVALIDA`.
 | 409 | `LICAO_NAO_CONCLUIDA` | Resposta do quiz antes de concluir a lição |
 | 405 | `METODO_NAO_PERMITIDO` | A rota não aceita esse método (veja o cabeçalho `Allow`) |
 | 429 | `LIMITE_DE_TROCAS` | 3 trocas de bairro ou escola nos últimos 30 dias |
-| 429 | `AGUARDE_NOVA_TENTATIVA` | Nova tentativa do quiz ainda não liberada (24 h depois do erro) |
 | 429 | `LIMITE_TUTOR` | 20 mensagens ao tutor na última hora |
 | 429 | `LIMITE_DE_REQUISICOES` | Muitas simulações seguidas (sem login, por endereço; na prévia com login, por perfil) |
 | 500 | `ERRO_INTERNO` | Erro inesperado |

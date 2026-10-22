@@ -38,21 +38,48 @@ const eventoComConquista = {
 const resultadoConta = {
   consumoKwh: 380,
   gastoMensal: 312,
+  economiaHabitosMensal: 31.2,
+  economiaSolarMensal: 312,
+  kwhGeradoMes: 413.9,
+  custoSistemaSolar: 9372,
+  retornoSolarAnos: 2.5,
   economiaMensal: 31.2,
   placas: 6,
   retornoAnos: 2.5,
   co2EvitadoKgAno: 191.2,
   pesos: [],
+  comoCalculamos: {
+    economiaHabitos: "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
+    economiaSolar:
+      "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). " +
+      "6 placas geram 413,9 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh.",
+    custoSistemaSolar: "6 × 0,55 kWp × R$ 2.840,00 por kWp instalado = R$ 9.372,00 (preço médio de mercado, estimativa).",
+    retornoSolar: "R$ 9.372,00 ÷ (R$ 312,00 × 12 meses) = 2,5 anos. Usa a economia com energia solar, não a de hábitos.",
+  },
 };
 
 const resultadoAparelhos = {
   consumoKwh: 82.5,
   gastoMensal: 73.33,
+  economiaHabitosMensal: 24.44,
+  economiaSolarMensal: 73.33,
+  kwhGeradoMes: 138,
+  custoSistemaSolar: 3124,
+  retornoSolarAnos: 3.6,
   economiaMensal: 24.44,
   placas: 2,
   retornoAnos: 3.6,
   co2EvitadoKgAno: 63.7,
   pesos: [{ aparelho: "Chuveiro elétrico", percentual: 100 }],
+  comoCalculamos: {
+    economiaHabitos:
+      "Mudança de hábitos, sem investimento: tomar banhos 10 minutos mais curtos por dia. São 27,5 kWh a menos por mês × R$ 0,8888 por kWh.",
+    economiaSolar:
+      "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). " +
+      "2 placas geram 138 kWh. A economia é a energia gerada, até o seu consumo de 82,5 kWh, × R$ 0,8888 por kWh.",
+    custoSistemaSolar: "2 × 0,55 kWp × R$ 2.840,00 por kWp instalado = R$ 3.124,00 (preço médio de mercado, estimativa).",
+    retornoSolar: "R$ 3.124,00 ÷ (R$ 73,33 × 12 meses) = 3,6 anos. Usa a economia com energia solar, não a de hábitos.",
+  },
 };
 
 export const especificacaoOpenApi = {
@@ -508,7 +535,9 @@ export const especificacaoOpenApi = {
         description: [
           "Busca os 4 trechos de lição mais parecidos com a pergunta e responde com o Gemini, só sobre energia,",
           "conta de luz e sustentabilidade. Limite de 20 mensagens por hora por usuário. O texto das conversas não é gravado:",
-          "para manter o contexto, o front envia as últimas mensagens em `historico`.",
+          "para manter o contexto, o front envia as últimas mensagens em `historico`. Pelo token, o servidor inclui no",
+          "contexto do modelo o bairro do estudante e o resumo da última simulação (consumo, gasto e o aparelho que mais",
+          "pesa), sem o nome. Sem simulação, o tutor responde normalmente.",
         ].join(" "),
         operationId: "perguntarAoTutor",
         security: [{ bearerAuth: [] }],
@@ -713,8 +742,8 @@ export const especificacaoOpenApi = {
         tags: ["Trilhas e quiz"],
         summary: "Retorna as perguntas do quiz da lição, sem a resposta certa",
         description: [
-          "Nunca traz o índice correto nem a explicação: a explicação só vem depois de responder.",
-          "Com login, mostra se a pergunta já foi respondida, se acertou e quando pode pontuar de novo.",
+          "Nunca traz o índice correto nem a explicação: os dois só vêm depois de responder.",
+          "Com login, mostra se a pergunta já foi respondida, se acertou na primeira tentativa e se ainda pode pontuar.",
           "Com `licaoConcluida: false`, todas as perguntas vêm com `podePontuar: false`: conclua a lição antes.",
         ].join("\n"),
         operationId: "obterQuiz",
@@ -736,7 +765,6 @@ export const especificacaoOpenApi = {
                     jaRespondida: true,
                     acertou: false,
                     podePontuar: false,
-                    proximaTentativaEm: "2026-10-17T12:00:00.000Z",
                   },
                 ],
               },
@@ -754,13 +782,10 @@ export const especificacaoOpenApi = {
         summary: "Responde uma pergunta do quiz",
         description: [
           "A correção é feita no servidor. Só responde depois de concluir a lição (`409 LICAO_NAO_CONCLUIDA`,",
-          "sem gravar a tentativa nem iniciar a espera). Regras de pontuação:",
-          "- a **primeira tentativa** vale pontos se estiver certa;",
-          "- depois de um erro, uma nova tentativa só vale pontos **24 h depois** (`proximaTentativaEm`);",
-          "- depois de acertar, a pergunta não pontua mais;",
-          "- a `explicacao` só vem quando a resposta está certa; numa resposta errada ela vem `null`;",
-          "- enquanto a nova tentativa não é liberada, a API responde `429 AGUARDE_NOVA_TENTATIVA` sem corrigir a",
-          "  resposta, para que o gabarito não possa ser descoberto testando as opções.",
+          "sem gravar a tentativa). Regras:",
+          "- só a **primeira tentativa** vale pontos, e só se estiver certa;",
+          "- as tentativas seguintes são treino: a API corrige, sem pontos e sem alterar o registro da primeira;",
+          "- certa ou errada, a resposta traz `opcaoCorreta` e `explicacao`.",
         ].join("\n"),
         operationId: "responderQuiz",
         security: [{ bearerAuth: [] }],
@@ -781,20 +806,31 @@ export const especificacaoOpenApi = {
                   summary: "Acertou na primeira tentativa",
                   value: {
                     correta: true,
+                    opcaoCorreta: 0,
                     explicacao: "Perto do Equador o sol chega mais 'em pé' o ano todo.",
                     tentativaPontuavel: true,
-                    proximaTentativaEm: null,
                     pontosGanhos: 5,
                     conquistasNovas: [],
                   },
                 },
                 errou: {
-                  summary: "Errou: nova tentativa que pontua em 24 h",
+                  summary: "Errou na primeira tentativa: mostra a certa, sem pontos",
                   value: {
                     correta: false,
-                    explicacao: null,
+                    opcaoCorreta: 0,
+                    explicacao: "Perto do Equador o sol chega mais 'em pé' o ano todo.",
                     tentativaPontuavel: true,
-                    proximaTentativaEm: "2026-10-17T12:00:00.000Z",
+                    pontosGanhos: 0,
+                    conquistasNovas: [],
+                  },
+                },
+                treino: {
+                  summary: "Respondeu de novo: treino, sem pontos",
+                  value: {
+                    correta: true,
+                    opcaoCorreta: 0,
+                    explicacao: "Perto do Equador o sol chega mais 'em pé' o ano todo.",
+                    tentativaPontuavel: false,
                     pontosGanhos: 0,
                     conquistasNovas: [],
                   },
@@ -809,11 +845,6 @@ export const especificacaoOpenApi = {
             "A lição da pergunta ainda não foi concluída.",
             "LICAO_NAO_CONCLUIDA",
             "Leia a lição antes de responder o quiz.",
-          ),
-          "429": respostaErro(
-            "A nova tentativa ainda não foi liberada.",
-            "AGUARDE_NOVA_TENTATIVA",
-            "Você já respondeu esta pergunta. Uma nova tentativa será liberada em 17/10 às 09:00.",
           ),
           "500": { $ref: "#/components/responses/ErroInterno" },
         },
@@ -1332,21 +1363,73 @@ export const especificacaoOpenApi = {
       },
       ResultadoSimulacao: {
         type: "object",
-        required: ["consumoKwh", "gastoMensal", "economiaMensal", "placas", "retornoAnos", "co2EvitadoKgAno", "pesos"],
+        required: [
+          "consumoKwh",
+          "gastoMensal",
+          "economiaHabitosMensal",
+          "economiaSolarMensal",
+          "kwhGeradoMes",
+          "custoSistemaSolar",
+          "retornoSolarAnos",
+          "economiaMensal",
+          "placas",
+          "retornoAnos",
+          "co2EvitadoKgAno",
+          "pesos",
+          "comoCalculamos",
+        ],
         properties: {
           consumoKwh: { type: "number", description: "Consumo mensal em kWh (1 casa decimal)." },
           gastoMensal: { type: "number", description: "Gasto mensal estimado em R$ (2 casas)." },
+          economiaHabitosMensal: {
+            type: ["number", "null"],
+            description:
+              "Economia por mês em R$ com **mudança de hábitos**, sem investimento (2 casas). Não tem relação com o retorno. `null` não acontece numa simulação nova.",
+          },
+          economiaSolarMensal: {
+            type: ["number", "null"],
+            description:
+              "Economia por mês em R$ **com as placas solares**: a energia gerada, até o consumo, × a tarifa (2 casas). `null` em simulações salvas antes desta versão.",
+          },
+          kwhGeradoMes: {
+            type: ["number", "null"],
+            description: "Energia que as placas geram por mês, em kWh (1 casa). `null` em simulações antigas.",
+          },
+          custoSistemaSolar: {
+            type: ["number", "null"],
+            description: "Custo estimado do sistema solar instalado, em R$ (2 casas). `null` em simulações antigas.",
+          },
+          retornoSolarAnos: {
+            type: ["number", "null"],
+            description: "Anos para o sistema solar se pagar: custo ÷ (economia solar × 12), com 1 casa.",
+          },
           economiaMensal: {
             type: "number",
-            description: "Economia mensal em R$ com mudança de hábitos (2 casas).",
+            deprecated: true,
+            description: "Igual a `economiaHabitosMensal`. Mantido por compatibilidade; use `economiaHabitosMensal`.",
           },
           placas: { type: "integer", description: "Quantidade de placas solares de 550 Wp para cobrir o consumo." },
-          retornoAnos: { type: "number", description: "Anos para o sistema solar se pagar (1 casa)." },
+          retornoAnos: {
+            type: "number",
+            deprecated: true,
+            description: "Igual a `retornoSolarAnos`. Mantido por compatibilidade; use `retornoSolarAnos`.",
+          },
           co2EvitadoKgAno: { type: "number", description: "CO₂ evitado por ano com as placas, em kg (1 casa)." },
           pesos: {
             type: "array",
             description: "Só no modo `aparelhos` (vazio no modo `conta`). Ordenado do maior para o menor; soma 100.",
             items: ref("Peso"),
+          },
+          comoCalculamos: {
+            type: ["object", "null"],
+            description: "Texto curto, com os números da simulação, explicando cada cálculo. `null` em simulações antigas.",
+            required: ["economiaHabitos", "economiaSolar", "custoSistemaSolar", "retornoSolar"],
+            properties: {
+              economiaHabitos: { type: "string" },
+              economiaSolar: { type: "string" },
+              custoSistemaSolar: { type: "string" },
+              retornoSolar: { type: "string" },
+            },
           },
         },
       },
@@ -1490,22 +1573,18 @@ export const especificacaoOpenApi = {
       },
       PerguntaDoQuiz: {
         type: "object",
-        required: ["id", "ordem", "enunciado", "opcoes", "jaRespondida", "acertou", "podePontuar", "proximaTentativaEm"],
+        required: ["id", "ordem", "enunciado", "opcoes", "jaRespondida", "acertou", "podePontuar"],
         properties: {
           id: { type: "string", format: "uuid" },
           ordem: { type: "integer" },
           enunciado: { type: "string" },
           opcoes: { type: "array", items: { type: "string" }, description: "Responda com o índice (0, 1, 2...)." },
           jaRespondida: { type: "boolean" },
-          acertou: { type: ["boolean", "null"], description: "`null` se ainda não respondeu." },
+          acertou: { type: ["boolean", "null"], description: "Se acertou na primeira tentativa. `null` se ainda não respondeu." },
           podePontuar: {
             type: "boolean",
-            description: "Se a próxima resposta vale pontos. Sempre `false` sem login ou com a lição não concluída.",
-          },
-          proximaTentativaEm: {
-            type: ["string", "null"],
-            format: "date-time",
-            description: "Quando volta a valer pontos, depois de um erro.",
+            description:
+              "Se a próxima resposta vale pontos: só antes da primeira tentativa. Sempre `false` sem login ou com a lição não concluída.",
           },
         },
       },
@@ -1532,12 +1611,15 @@ export const especificacaoOpenApi = {
           ref("ResultadoEvento"),
           {
             type: "object",
-            required: ["correta", "explicacao", "tentativaPontuavel", "proximaTentativaEm"],
+            required: ["correta", "opcaoCorreta", "explicacao", "tentativaPontuavel"],
             properties: {
               correta: { type: "boolean" },
-              explicacao: { type: ["string", "null"], description: "Só vem quando a resposta está certa." },
-              tentativaPontuavel: { type: "boolean", description: "Se esta resposta foi a que vale pontos." },
-              proximaTentativaEm: { type: ["string", "null"], format: "date-time" },
+              opcaoCorreta: { type: "integer", minimum: 0, description: "Índice da opção certa, certa ou errada a resposta." },
+              explicacao: { type: "string", description: "Por que a opção certa está certa, certa ou errada a resposta." },
+              tentativaPontuavel: {
+                type: "boolean",
+                description: "`true` só na primeira tentativa, a única que pode valer pontos. `false` é treino.",
+              },
             },
           },
         ],

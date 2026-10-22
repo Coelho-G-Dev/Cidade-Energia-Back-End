@@ -4,7 +4,7 @@ export const CABECALHOS_CORS = {
   "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
   "Access-Control-Allow-Headers": "Authorization,Content-Type",
   "Access-Control-Max-Age": "86400",
-  Vary: "Origin",
+  Vary: "Origin, Authorization",
 } as const;
 
 export function lerOrigens(valor: string | undefined): string[] {

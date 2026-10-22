@@ -1,3 +1,5 @@
+import { CACHE, cabecalhoDeCache } from "@/lib/http/cache";
+
 const VERSAO_SWAGGER_UI = "5.17.14";
 const CDN = `https://unpkg.com/swagger-ui-dist@${VERSAO_SWAGGER_UI}`;
 
@@ -27,5 +29,7 @@ const pagina = `<!doctype html>
 </html>`;
 
 export function GET() {
-  return new Response(pagina, { headers: { "content-type": "text/html; charset=utf-8" } });
+  return new Response(pagina, {
+    headers: { "content-type": "text/html; charset=utf-8", ...cabecalhoDeCache(CACHE.documentacao) },
+  });
 }

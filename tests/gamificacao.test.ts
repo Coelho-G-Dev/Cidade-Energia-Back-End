@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  avaliarTentativa,
   conquistasMerecidas,
   diaEmSaoLuis,
   licaoPendenteAntes,
   missaoCompleta,
+  tentativaPontuavel,
   trilhasConcluidas,
   type RetratoUsuario,
 } from "@/lib/gamificacao/regras";
@@ -55,29 +55,14 @@ describe("trilhasConcluidas", () => {
   });
 });
 
-describe("avaliarTentativa", () => {
-  const agora = new Date("2026-10-16T12:00:00Z");
-  const horasAtras = (h: number) => new Date(agora.getTime() - h * 3_600_000);
-
-  it("a primeira tentativa pontua", () => {
-    expect(avaliarTentativa(null, agora)).toEqual({ pontuavel: true, proximaTentativaEm: null });
+describe("tentativaPontuavel", () => {
+  it("só a primeira tentativa pontua", () => {
+    expect(tentativaPontuavel(null)).toBe(true);
   });
 
-  it("depois de acertar, nunca mais pontua", () => {
-    expect(avaliarTentativa({ correta: true, tentativaEm: horasAtras(100) }, agora)).toEqual({
-      pontuavel: false,
-      proximaTentativaEm: null,
-    });
-  });
-
-  it("depois de errar, só volta a pontuar 24 h depois", () => {
-    const decisao = avaliarTentativa({ correta: false, tentativaEm: horasAtras(23) }, agora);
-    expect(decisao.pontuavel).toBe(false);
-    expect(decisao.proximaTentativaEm).toEqual(new Date("2026-10-16T13:00:00Z"));
-  });
-
-  it("com exatamente 24 h a nova tentativa já pontua", () => {
-    expect(avaliarTentativa({ correta: false, tentativaEm: horasAtras(24) }, agora).pontuavel).toBe(true);
+  it("depois de errar ou de acertar, as tentativas seguintes são treino", () => {
+    expect(tentativaPontuavel({ correta: false })).toBe(false);
+    expect(tentativaPontuavel({ correta: true })).toBe(false);
   });
 });
 

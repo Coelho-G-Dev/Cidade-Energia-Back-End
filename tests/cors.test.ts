@@ -60,7 +60,7 @@ describe("proxy (CORS das rotas /api)", () => {
     const r = proxy(req("GET", "https://front.vercel.app"));
     expect(r.headers.get("access-control-allow-origin")).toBe("https://front.vercel.app");
     expect(r.headers.get("access-control-allow-headers")).toBe("Authorization,Content-Type");
-    expect(r.headers.get("vary")).toBe("Origin");
+    expect(r.headers.get("vary")).toBe("Origin, Authorization");
   });
 
   it("responde o preflight OPTIONS com 204", () => {

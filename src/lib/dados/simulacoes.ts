@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { EntradaSimulacao, ResultadoSimulacao } from "@/lib/calculos/simulador";
+import type { ComoCalculamos, EntradaSimulacao, ResultadoSimulacao } from "@/lib/calculos/simulador";
 import { buscarAparelhos } from "@/lib/dados/catalogos";
 import { erroDoBanco, naoEncontrado } from "@/lib/http/erros";
 import type { CriarSimulacao } from "@/lib/validacao/simulacao";
@@ -46,14 +46,42 @@ export async function salvarSimulacao(
   return data as string;
 }
 
+type CamposNovos = "economiaHabitosMensal" | "economiaSolarMensal" | "kwhGeradoMes" | "custoSistemaSolar" | "retornoSolarAnos";
+
+export type ResultadoSalvo = Omit<ResultadoSimulacao, CamposNovos | "comoCalculamos"> & {
+  [K in CamposNovos]: number | null;
+} & { comoCalculamos: ComoCalculamos | null };
+
 export type SimulacaoSalva = {
   id: string;
   modo: "conta" | "aparelhos";
   consumoKwh: number;
   valorConta: number | null;
   criadoEm: string;
-  resultado: ResultadoSimulacao;
+  resultado: ResultadoSalvo;
 };
+
+const numeroOuNull = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+function comoCalculamosOuNull(v: unknown): ComoCalculamos | null {
+  if (!v || typeof v !== "object") return null;
+  const c = v as Record<string, unknown>;
+  const chaves = ["economiaHabitos", "economiaSolar", "custoSistemaSolar", "retornoSolar"] as const;
+  return chaves.every((k) => typeof c[k] === "string") ? (c as ComoCalculamos) : null;
+}
+
+export function normalizarResultado(bruto: unknown): ResultadoSalvo {
+  const r = (bruto && typeof bruto === "object" ? bruto : {}) as Record<string, unknown>;
+  return {
+    ...(r as ResultadoSimulacao),
+    economiaHabitosMensal: numeroOuNull(r.economiaHabitosMensal) ?? numeroOuNull(r.economiaMensal),
+    economiaSolarMensal: numeroOuNull(r.economiaSolarMensal),
+    kwhGeradoMes: numeroOuNull(r.kwhGeradoMes),
+    custoSistemaSolar: numeroOuNull(r.custoSistemaSolar),
+    retornoSolarAnos: numeroOuNull(r.retornoSolarAnos) ?? numeroOuNull(r.retornoAnos),
+    comoCalculamos: comoCalculamosOuNull(r.comoCalculamos),
+  };
+}
 
 export async function ultimaSimulacao(supabase: SupabaseClient, usuarioId: string): Promise<SimulacaoSalva> {
   const { data, error } = await supabase
@@ -72,6 +100,6 @@ export async function ultimaSimulacao(supabase: SupabaseClient, usuarioId: strin
     consumoKwh: Number(data.consumo_kwh),
     valorConta: data.valor_conta == null ? null : Number(data.valor_conta),
     criadoEm: data.criado_em,
-    resultado: data.resultado,
+    resultado: normalizarResultado(data.resultado),
   };
 }

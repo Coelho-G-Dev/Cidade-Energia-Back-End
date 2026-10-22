@@ -103,12 +103,46 @@ describe("simular — modo conta", () => {
     expect(simular({ modo: "conta", consumoKwh: 380, valorConta: 312 }, P)).toEqual({
       consumoKwh: 380,
       gastoMensal: 312,
+      economiaHabitosMensal: 31.2,
+      economiaSolarMensal: 312,
+      kwhGeradoMes: 427.7,
+      custoSistemaSolar: 13200,
+      retornoSolarAnos: 3.5,
       economiaMensal: 31.2,
       placas: 6,
       retornoAnos: 3.5,
       co2EvitadoKgAno: 197.6,
       pesos: [],
+      comoCalculamos: {
+        economiaHabitos: "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
+        economiaSolar:
+          "Cada placa de 550 W gera cerca de 71,3 kWh por mês com o sol de São Luís (5,4 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias)." +
+          " 6 placas geram 427,7 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh.",
+        custoSistemaSolar: "6 × 0,55 kWp × R$ 4.000,00 por kWp instalado = R$ 13.200,00 (preço médio de mercado, estimativa).",
+        retornoSolar:
+          "R$ 13.200,00 ÷ (R$ 312,00 × 12 meses) = 3,5 anos. Usa a economia com energia solar, não a de hábitos.",
+      },
     });
+  });
+
+  it("separa a economia de hábitos da economia solar, e o retorno usa só a solar", () => {
+    const r = simular({ modo: "conta", consumoKwh: 380, valorConta: 312 }, P);
+    expect(r.economiaHabitosMensal).not.toBe(r.economiaSolarMensal);
+    expect(r.economiaMensal).toBe(r.economiaHabitosMensal);
+    expect(r.retornoAnos).toBe(r.retornoSolarAnos);
+    expect(r.retornoSolarAnos).toBe(arredondar(r.custoSistemaSolar / (r.economiaSolarMensal * 12), 1));
+    expect(r.retornoSolarAnos).not.toBe(arredondar(r.custoSistemaSolar / (r.economiaHabitosMensal * 12), 1));
+  });
+
+  it("custo do sistema = placas × kWp × custo por kWp", () => {
+    const r = simular({ modo: "conta", consumoKwh: 200 }, P);
+    expect(r.custoSistemaSolar).toBe(arredondar(r.placas * 0.55 * 4000, 2));
+  });
+
+  it("economia solar fica limitada ao consumo da casa", () => {
+    const r = simular({ modo: "conta", consumoKwh: 100 }, P);
+    expect(r.kwhGeradoMes).toBeGreaterThan(100);
+    expect(r.economiaSolarMensal).toBe(82);
   });
 
   it("sem valor da conta usa a tarifa padrão", () => {
@@ -143,8 +177,22 @@ describe("simular — modo aparelhos", () => {
     expect(r.gastoMensal).toBe(330.62);
   });
 
-  it("economia vem das regras (57,5 kWh × 0,82)", () => {
+  it("economia de hábitos vem das regras (57,5 kWh × 0,82)", () => {
+    expect(r.economiaHabitosMensal).toBe(47.15);
     expect(r.economiaMensal).toBe(47.15);
+    expect(r.comoCalculamos.economiaHabitos).toBe(
+      "Mudança de hábitos, sem investimento: usar o ar-condicionado 1 hora a menos por dia e tomar banhos 10 minutos mais curtos por dia." +
+        " São 57,5 kWh a menos por mês × R$ 0,82 por kWh.",
+    );
+  });
+
+  it("sem aparelho com dica, a economia de hábitos é zero e o texto explica", () => {
+    const s = simular({ modo: "aparelhos", itens: [item("tv", "TV", 100, 5)] }, P);
+    expect(s.economiaHabitosMensal).toBe(0);
+    expect(s.comoCalculamos.economiaHabitos).toBe(
+      "Nenhum aparelho da lista tem uma dica de hábito no simulador, então esta economia fica em zero.",
+    );
+    expect(s.comoCalculamos.economiaSolar).not.toContain("placas geram");
   });
 
   it("pesos por aparelho somam 100% com maior resto", () => {
@@ -158,8 +206,12 @@ describe("simular — modo aparelhos", () => {
     ]);
   });
 
-  it("dimensiona placas, retorno e CO₂", () => {
+  it("dimensiona placas, custo, economia solar, retorno e CO₂", () => {
     expect(r.placas).toBe(6);
+    expect(r.kwhGeradoMes).toBe(427.7);
+    expect(r.custoSistemaSolar).toBe(13200);
+    expect(r.economiaSolarMensal).toBe(330.62);
+    expect(r.retornoSolarAnos).toBe(3.3);
     expect(r.retornoAnos).toBe(3.3);
     expect(r.co2EvitadoKgAno).toBe(197.6);
   });

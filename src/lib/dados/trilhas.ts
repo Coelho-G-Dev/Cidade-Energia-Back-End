@@ -67,24 +67,30 @@ export async function listarTrilhas(supabase: SupabaseClient, perfilId: string |
   );
 }
 
+type Relacao<T> = T | T[] | null;
+const umSo = <T>(r: Relacao<T>): T | null => (Array.isArray(r) ? (r[0] ?? null) : r);
+const porOrdem = <T extends { ordem: number }>(linhas: T[]) => [...linhas].sort((a, b) => a.ordem - b.ordem);
+
 export async function obterTrilha(
   supabase: SupabaseClient,
   slug: string,
   perfilId: string | null,
 ): Promise<TrilhaDetalhada> {
-  const { data: trilha, error } = await supabase.from("trilhas").select(colunasTrilha).eq("slug", slug).maybeSingle();
-  if (error) throw erroDoBanco(error);
-  if (!trilha) throw naoEncontrado("TRILHA_NAO_ENCONTRADA", "Trilha não encontrada.");
-
-  const [licoes, concluidas] = await Promise.all([
-    supabase.from("licoes").select(colunasLicao).eq("trilha_id", trilha.id).order("ordem"),
+  const [consulta, concluidas] = await Promise.all([
+    supabase
+      .from("trilhas")
+      .select(`${colunasTrilha}, licoes(${colunasLicao})`)
+      .eq("slug", slug)
+      .maybeSingle<LinhaTrilha & { licoes: LinhaLicao[] }>(),
     licoesConcluidas(supabase, perfilId),
   ]);
-  if (licoes.error) throw erroDoBanco(licoes.error);
-  const linhas = licoes.data as LinhaLicao[];
+  if (consulta.error) throw erroDoBanco(consulta.error);
+  if (!consulta.data) throw naoEncontrado("TRILHA_NAO_ENCONTRADA", "Trilha não encontrada.");
+  const { licoes, ...trilha } = consulta.data;
+  const linhas = porOrdem(licoes);
 
   return {
-    ...resumir(trilha as LinhaTrilha, linhas, concluidas),
+    ...resumir(trilha, linhas, concluidas),
     licoes: linhas.map((l) => ({
       id: l.id,
       ordem: l.ordem,
@@ -101,34 +107,43 @@ export async function obterLicao(
   licaoId: string,
   perfilId: string | null,
 ): Promise<LicaoDetalhada> {
-  const { data: licao, error } = await supabase
-    .from("licoes")
-    .select("id, trilha_id, ordem, titulo, conteudo, tipo")
-    .eq("id", licaoId)
-    .maybeSingle();
-  if (error) throw erroDoBanco(error);
-  if (!licao) throw naoEncontrado("LICAO_NAO_ENCONTRADA", "Lição não encontrada.");
+  type Irma = { id: string; ordem: number; titulo: string };
+  type LinhaLicaoDetalhada = {
+    id: string;
+    ordem: number;
+    titulo: string;
+    conteudo: string;
+    tipo: TipoLicao;
+    trilhas: Relacao<{ slug: string; titulo: string; licoes: Irma[] }>;
+    perguntas: { id: string }[];
+  };
 
-  const [trilha, irmas, perguntas, concluidas] = await Promise.all([
-    supabase.from("trilhas").select("slug, titulo").eq("id", licao.trilha_id).single(),
-    supabase.from("licoes").select("id, ordem, titulo").eq("trilha_id", licao.trilha_id).order("ordem"),
-    supabase.from("perguntas").select("id", { count: "exact", head: true }).eq("licao_id", licaoId),
+  const [consulta, concluidas] = await Promise.all([
+    supabase
+      .from("licoes")
+      .select("id, ordem, titulo, conteudo, tipo, trilhas(slug, titulo, licoes(id, ordem, titulo)), perguntas(id)")
+      .eq("id", licaoId)
+      .maybeSingle<LinhaLicaoDetalhada>(),
     licoesConcluidas(supabase, perfilId),
   ]);
-  for (const r of [trilha, irmas, perguntas]) if (r.error) throw erroDoBanco(r.error);
+  if (consulta.error) throw erroDoBanco(consulta.error);
+  const licao = consulta.data;
+  if (!licao) throw naoEncontrado("LICAO_NAO_ENCONTRADA", "Lição não encontrada.");
+  const trilha = umSo(licao.trilhas);
+  if (!trilha) throw naoEncontrado("LICAO_NAO_ENCONTRADA", "Lição não encontrada.");
 
-  const licoesDaTrilha = irmas.data as { id: string; ordem: number; titulo: string }[];
+  const licoesDaTrilha = porOrdem(trilha.licoes);
   const proxima = licoesDaTrilha.find((l) => l.ordem > licao.ordem);
   const pendente = licaoPendenteAntes(licoesDaTrilha, licao, concluidas);
 
   return {
     id: licao.id,
-    trilha: trilha.data as { slug: string; titulo: string },
+    trilha: { slug: trilha.slug, titulo: trilha.titulo },
     ordem: licao.ordem,
     titulo: licao.titulo,
     conteudo: licao.conteudo,
     tipo: licao.tipo,
-    totalPerguntas: perguntas.count ?? 0,
+    totalPerguntas: licao.perguntas.length,
     concluida: concluidas.has(licao.id),
     liberada: pendente === null,
     licaoPendente: pendente,

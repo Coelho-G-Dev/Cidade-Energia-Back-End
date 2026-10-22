@@ -10,7 +10,9 @@ import {
   mensagemLimiteTutor,
   montarInstrucoes,
   RESPOSTA_BLOQUEADA,
+  resumirSimulacao,
   selecionarRelevantes,
+  type ContextoEstudante,
   type LicaoRelacionada,
   type TrechoRecuperado,
 } from "@/lib/ia/tutor";
@@ -78,9 +80,63 @@ export async function buscarLicoesRelacionadas(supabase: SupabaseClient, ids: st
   return ids.flatMap((id) => porId.get(id) ?? []);
 }
 
+type Relacao<T> = T | T[] | null;
+const primeiro = <T>(r: Relacao<T>): T | null => (Array.isArray(r) ? (r[0] ?? null) : r);
+
+type LinhaPerfil = { bairros: Relacao<{ nome: string }> };
+type LinhaSimulacao = {
+  modo: "conta" | "aparelhos";
+  consumo_kwh: number | string;
+  valor_conta: number | string | null;
+  simulacao_itens: { quantidade: number; horas_dia: number | string; aparelhos: Relacao<{ nome: string; potencia_w: number | string }> }[];
+};
+
+export async function buscarContextoEstudante(admin: SupabaseClient, usuarioId: string): Promise<ContextoEstudante> {
+  const [perfil, simulacao] = await Promise.all([
+    admin.from("perfis").select("bairros(nome)").eq("id", usuarioId).maybeSingle<LinhaPerfil>(),
+    admin
+      .from("simulacoes")
+      .select("modo, consumo_kwh, valor_conta, simulacao_itens(quantidade, horas_dia, aparelhos(nome, potencia_w))")
+      .eq("perfil_id", usuarioId)
+      .order("criado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle<LinhaSimulacao>(),
+  ]);
+  if (perfil.error) throw erroDoBanco(perfil.error);
+  if (simulacao.error) throw erroDoBanco(simulacao.error);
+
+  const s = simulacao.data;
+  return {
+    bairro: primeiro(perfil.data?.bairros ?? null)?.nome ?? null,
+    simulacao: s
+      ? resumirSimulacao({
+          modo: s.modo,
+          consumoKwh: Number(s.consumo_kwh),
+          valorConta: s.valor_conta == null ? null : Number(s.valor_conta),
+          itens: s.simulacao_itens.flatMap((i) => {
+            const aparelho = primeiro(i.aparelhos);
+            return aparelho
+              ? [{ nome: aparelho.nome, potenciaW: Number(aparelho.potencia_w), quantidade: i.quantidade, horasDia: Number(i.horas_dia) }]
+              : [];
+          }),
+        })
+      : null,
+  };
+}
+
+async function contextoOuNada(admin: SupabaseClient, usuarioId: string): Promise<ContextoEstudante | null> {
+  try {
+    return await buscarContextoEstudante(admin, usuarioId);
+  } catch {
+    console.error("Tutor: contexto do estudante indisponível; respondendo sem ele");
+    return null;
+  }
+}
+
 export async function responderTutor(pedido: PedidoTutor): Promise<RespostaTutor> {
   const gemini = pedido.gemini ?? configGemini();
   await registrarUsoTutor(pedido.admin, pedido.usuarioId);
+  const estudante = contextoOuNada(pedido.admin, pedido.usuarioId);
 
   try {
     const embedding = await gerarEmbedding(textoDeConsulta(pedido.mensagem), gemini);
@@ -90,7 +146,7 @@ export async function responderTutor(pedido: PedidoTutor): Promise<RespostaTutor
       gerarResposta(
         {
           modelo: gemini.modelo,
-          instrucoes: montarInstrucoes(relevantes),
+          instrucoes: montarInstrucoes(relevantes, await estudante),
           historico: pedido.historico,
           mensagem: pedido.mensagem,
         },

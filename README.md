@@ -69,6 +69,8 @@ O deploy é automático na **Vercel** a cada push no `master`.
 
 Para testar rotas com login no Swagger, clique em **Authorize** e cole um `access_token` ([como conseguir um](#como-conseguir-um-token-para-testes)).
 
+**Região e cache:** o `vercel.json` põe as funções em `gru1` (São Paulo), a mesma região do Supabase (`sa-east-1`). Antes elas rodavam em `iad1` (EUA), e cada consulta atravessava o continente. As rotas GET de conteúdo sem token ficam até 5 minutos na CDN; com token, nunca (detalhes em [`docs/api.md`](docs/api.md)).
+
 Também há:
 
 - [`docs/api.md`](docs/api.md): todas as rotas com exemplo de requisição e resposta;
@@ -80,7 +82,7 @@ Também há:
 
 1. **Privacidade de menores de idade**: login anônimo, sem e-mail, telefone ou documento; só o primeiro nome, o bairro e a escola. O tutor não grava o texto das conversas, e o limite das rotas públicas guarda só um hash do IP.
 2. **RLS em todas as tabelas**: cada estudante só lê os próprios dados. Pontos, respostas, progresso e uso do tutor são gravados só pelo servidor, com o `perfil_id` tirado do token.
-3. **Pontos à prova de trapaça**: a tabela `pontos_eventos` é única por (perfil, origem, referência), e o cliente nunca envia pontos. As lições são concluídas na ordem, o quiz exige a lição concluída, e o gabarito nunca sai da API: errar trava a pergunta por 24 h sem revelar a correção.
+3. **Pontos à prova de trapaça**: a tabela `pontos_eventos` é única por (perfil, origem, referência), e o cliente nunca envia pontos. As lições são concluídas na ordem, o quiz exige a lição concluída, só a primeira tentativa de cada pergunta vale pontos, e a resposta certa só aparece depois de responder.
 4. **Rankings sem dados individuais**: saem de views agregadas. Só quem entra pelo código da turma soma pontos para a escola, o que impede que contas em massa inflem uma escola.
 5. **Estimativas com fonte**: todas as constantes de cálculo ficam em `src/lib/config.ts`, cada uma com a fonte em `FONTES` (ANEEL, NASA POWER, MCTI, CRESESB, Greener).
 6. **Resiliência**: a NASA POWER fica em cache (6 h para o dado diário, 30 dias para a média anual), com um valor de reserva se tudo falhar. O limite das rotas públicas fica no banco, porque cada chamada na Vercel pode rodar numa instância diferente.
@@ -319,11 +321,22 @@ Resposta:
 {
   "consumoKwh": 380,
   "gastoMensal": 312,
+  "economiaHabitosMensal": 31.2,
+  "economiaSolarMensal": 312,
+  "kwhGeradoMes": 413.9,
+  "custoSistemaSolar": 9372,
+  "retornoSolarAnos": 2.5,
   "economiaMensal": 31.2,
   "placas": 6,
   "retornoAnos": 2.5,
   "co2EvitadoKgAno": 191.2,
   "pesos": [],
+  "comoCalculamos": {
+    "economiaHabitos": "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
+    "economiaSolar": "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). 6 placas geram 413,9 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh.",
+    "custoSistemaSolar": "6 × 0,55 kWp × R$ 2.840,00 por kWp instalado = R$ 9.372,00 (preço médio de mercado, estimativa).",
+    "retornoSolar": "R$ 9.372,00 ÷ (R$ 312,00 × 12 meses) = 2,5 anos. Usa a economia com energia solar, não a de hábitos."
+  },
   "simulacaoId": null,
   "pontosGanhos": 0,
   "conquistasNovas": []
@@ -334,14 +347,21 @@ Resposta:
 |---|---|
 | `consumoKwh` | Consumo por mês (kWh) |
 | `gastoMensal` | Quanto a família gasta por mês (R$) |
-| `economiaMensal` | Quanto dá para economizar por mês mudando hábitos (R$) |
+| `economiaHabitosMensal` | Quanto dá para economizar por mês **mudando hábitos**, sem investimento (R$). Não tem relação com o retorno |
+| `economiaSolarMensal` | Quanto as **placas solares** economizariam por mês: a energia gerada, até o consumo, × a tarifa (R$) |
+| `kwhGeradoMes` | Energia que as placas gerariam por mês (kWh) |
+| `custoSistemaSolar` | Custo estimado do sistema solar instalado (R$) |
+| `retornoSolarAnos` | Em quantos anos as placas se pagam: `custoSistemaSolar ÷ (economiaSolarMensal × 12)` |
+| `comoCalculamos` | Um texto curto, com os números da simulação, para cada um dos 4 campos acima (`economiaHabitos`, `economiaSolar`, `custoSistemaSolar`, `retornoSolar`) |
+| `economiaMensal`, `retornoAnos` | **Obsoletos**: iguais a `economiaHabitosMensal` e `retornoSolarAnos`, mantidos por compatibilidade |
 | `placas` | Quantas placas solares cobririam o consumo |
-| `retornoAnos` | Em quantos anos as placas se pagam |
 | `co2EvitadoKgAno` | CO₂ que as placas evitariam por ano (kg) |
 | `pesos` | Quanto cada aparelho pesa na conta, em %. Vem preenchido só no modo `aparelhos` (do maior para o menor, somando 100) |
 | `simulacaoId` | ID da simulação salva, ou `null` se não havia login |
 
 Os números já vêm arredondados para exibir: R$ com 2 casas, o resto com 1. Todos são **estimativas didáticas**; mostre isso na tela.
+
+**Hábitos e energia solar são coisas diferentes:** não junte `economiaHabitosMensal` com `retornoSolarAnos` na mesma frase. O retorno vem da economia solar. Por exemplo: "Mudando hábitos: R$ 31,20/mês" e "Com 6 placas: R$ 312,00/mês; o sistema custa R$ 9.372,00 e se paga em 2,5 anos".
 
 #### Prévia ao vivo
 
@@ -372,17 +392,16 @@ Authorization: Bearer <token>
 { "perguntaId": "<id>", "opcao": 1 }
 ```
 
-`opcao` é o índice da opção (0, 1, 2...). A resposta traz `correta`, `explicacao` (só quando a resposta está certa; `null` quando está errada), `pontosGanhos` e `proximaTentativaEm`.
+`opcao` é o índice da opção (0, 1, 2...). Certa ou errada, a resposta traz `correta`, `opcaoCorreta` (índice da opção certa), `explicacao`, `tentativaPontuavel` e `pontosGanhos`.
 
 **Ordem das lições:** dentro de uma trilha, a lição N só é concluída depois das anteriores. Pular a ordem dá `409 LICAO_BLOQUEADA`, e responder o quiz sem concluir a lição dá `409 LICAO_NAO_CONCLUIDA` (sem gravar a tentativa). Quem já tinha concluído fora de ordem mantém o progresso, os pontos e as conquistas.
 
 **Regras do quiz:**
 
-- Só a **primeira tentativa** vale pontos.
-- Depois de errar, uma nova tentativa só vale pontos **24 horas depois** (`proximaTentativaEm`).
-- Enquanto a nova tentativa não é liberada, a API responde `429 AGUARDE_NOVA_TENTATIVA` e não corrige a resposta. Assim o gabarito não pode ser descoberto testando as opções.
-- Depois de acertar, o estudante pode responder de novo, mas não ganha pontos.
-- Use `podePontuar` e `proximaTentativaEm` do `GET .../quiz` para desabilitar o botão e mostrar isso na tela.
+- Só a **primeira tentativa** vale pontos, e só se estiver certa.
+- Depois dela, acertando ou errando, as respostas são **treino**: a API corrige e mostra a explicação, mas não dá pontos e não muda o registro da primeira (`tentativaPontuavel: false`).
+- A resposta certa e a explicação só aparecem **depois** de responder. O `GET .../quiz` nunca as traz.
+- Use `podePontuar` do `GET .../quiz` para avisar que a pergunta ainda vale pontos.
 - `licaoConcluida` no `GET .../quiz` diz se a lição já foi concluída. Enquanto for `false`, todas as perguntas vêm com `podePontuar: false`.
 
 ### 🌱 Missões
@@ -467,6 +486,7 @@ Authorization: Bearer <token>
 
 - O Energinho responde **só** sobre energia, conta de luz e sustentabilidade, com base nas lições do app (RAG). Quando não sabe, diz isso.
 - O servidor **não grava o texto das conversas**. Para manter o contexto, o front guarda a conversa e envia as últimas mensagens (até 10) em `historico`.
+- O tutor conhece o **bairro** e a **última simulação** do estudante (consumo, gasto e o aparelho que mais pesa), lidos pelo token no servidor. O nome nunca vai para o modelo, e nada disso aparece nos logs. Os dados da simulação saem das colunas numéricas e dos itens ligados ao catálogo, não do `resultado` salvo, que o cliente pode gravar.
 - Limites: a `mensagem` pode ter até 500 caracteres; cada item do `historico`, até 1.000; a `resposta`, até 1.500. Cada estudante pode mandar **20 mensagens por hora**; acima disso, vem `429 LIMITE_TUTOR`, com o horário de liberação na mensagem.
 - `licoesRelacionadas` pode vir vazia (por exemplo, numa pergunta fora do tema). Use `id` para abrir a lição.
 - A `resposta` não cita títulos de lições: mostre `licoesRelacionadas` como links logo abaixo dela.
@@ -503,7 +523,6 @@ A `mensagem` está em português e pode ser mostrada ao usuário. Use o `codigo`
 | 409 | `LICAO_BLOQUEADA` | Tentou concluir uma lição antes das anteriores da trilha (a mensagem diz qual falta) |
 | 409 | `LICAO_NAO_CONCLUIDA` | Tentou responder o quiz antes de concluir a lição |
 | 429 | `LIMITE_DE_TROCAS` | Já trocou de bairro ou escola 3 vezes nos últimos 30 dias |
-| 429 | `AGUARDE_NOVA_TENTATIVA` | Errou a pergunta e as 24 h para a nova tentativa ainda não passaram |
 | 429 | `LIMITE_TUTOR` | Já mandou 20 mensagens ao tutor na última hora |
 | 429 | `LIMITE_DE_REQUISICOES` | Muitas simulações seguidas (prévia ou simulação sem login): espere um pouco |
 | 500 | `ERRO_INTERNO` | Erro inesperado: tente de novo |
@@ -518,6 +537,7 @@ Campos que a API não conhece são recusados com `400`. Por exemplo, o front **n
 - **Dados de exemplo** (ilustrativos): 12 bairros de São Luís, 6 aparelhos e 3 escolas fictícias com os códigos de turma `SOL2026`, `VENTO26` e `LUZ2026`.
 - **Escolas reais** (`supabase/seeds/escolas.sql`): a lista entra em JSON entre os marcadores `$lista$[` e `]$lista$`, um objeto por escola: `{ "nome": "...", "bairro": "...", "codigo_inep": "21xxxxxx" }`. O `codigo_inep` (8 dígitos do Censo Escolar) é opcional, mas evita duplicar a escola. Bairros que ainda não existem são criados. Cada escola nova ganha um **código de turma aleatório** de 8 caracteres (sem 0, O, 1 e I), que não muda ao rodar o seed de novo. Com a lista preenchida, as 3 escolas fictícias ficam inativas e perdem o código.
   - Aplicar: `npx supabase db query --linked -f supabase/seeds/escolas.sql`.
+  - **Perfis de teste do time:** marque com `npx supabase db query --linked "update perfis set eh_teste = true where id = '<id>'"`. O perfil continua usando o app, mas sai dos rankings e da soma do Bairro unido. O cliente não consegue ligar nem desligar `eh_teste`. O `npm run verificar:banco` marca como teste os usuários que não conseguir apagar no fim.
   - Códigos para os professores (só com a chave de serviço): `npx supabase db query --linked "select b.nome as bairro, e.nome, e.codigo_turma from escolas e join bairros b on b.id = e.bairro_id where e.ativa order by 1, 2"`.
 - **Conteúdo** (5 trilhas, 18 lições, 20 perguntas e 2 missões): revisado em 2026-10-17. Os números das lições são **estimativas didáticas** e usam as mesmas constantes do simulador (`src/lib/config.ts`).
 - **Mapa** (14 pontos): os **10 pontos de coleta são locais reais** de São Luís (ecopontos da Prefeitura, a Central de Logística Reversa da Vila Isabel e a UFMA), conferidos em 2026-10-17, com o que cada um recebe e o horário na descrição. Os 2 pontos solares e as 2 ações ainda são ilustrativos e não correspondem a locais reais.
