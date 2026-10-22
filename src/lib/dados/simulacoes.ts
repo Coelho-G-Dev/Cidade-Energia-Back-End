@@ -72,13 +72,14 @@ function comoCalculamosOuNull(v: unknown): ComoCalculamos | null {
 
 export function normalizarResultado(bruto: unknown): ResultadoSalvo {
   const r = (bruto && typeof bruto === "object" ? bruto : {}) as Record<string, unknown>;
+  const { economiaMensal, retornoAnos, ...resto } = r;
   return {
-    ...(r as ResultadoSimulacao),
-    economiaHabitosMensal: numeroOuNull(r.economiaHabitosMensal) ?? numeroOuNull(r.economiaMensal),
+    ...(resto as ResultadoSimulacao),
+    economiaHabitosMensal: numeroOuNull(r.economiaHabitosMensal) ?? numeroOuNull(economiaMensal),
     economiaSolarMensal: numeroOuNull(r.economiaSolarMensal),
     kwhGeradoMes: numeroOuNull(r.kwhGeradoMes),
     custoSistemaSolar: numeroOuNull(r.custoSistemaSolar),
-    retornoSolarAnos: numeroOuNull(r.retornoSolarAnos) ?? numeroOuNull(r.retornoAnos),
+    retornoSolarAnos: numeroOuNull(r.retornoSolarAnos) ?? numeroOuNull(retornoAnos),
     comoCalculamos: comoCalculamosOuNull(r.comoCalculamos),
   };
 }

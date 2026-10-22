@@ -7,9 +7,15 @@ export const IRRADIACAO_MEDIA_SAO_LUIS = 5.226;
 export const FATOR_EMISSAO_KG_CO2_KWH = 0.0385;
 export const PERCENTUAL_ECONOMIA_PADRAO = 0.1;
 
-export const REGRAS_ECONOMIA: Readonly<Record<string, { reducaoHorasDia: number; dica: string }>> = {
+export type RegraEconomia = { dica: string } & ({ reducaoHorasDia: number } | { reducaoPercentual: number });
+
+export const REGRAS_ECONOMIA: Readonly<Record<string, RegraEconomia>> = {
   ar_condicionado: { reducaoHorasDia: 1, dica: "Usar o ar-condicionado 1 hora a menos por dia" },
   chuveiro: { reducaoHorasDia: 10 / 60, dica: "Tomar banhos 10 minutos mais curtos por dia" },
+  geladeira: { reducaoPercentual: 0.1, dica: "Abrir a geladeira só quando precisar, sem guardar comida quente" },
+  tv: { reducaoHorasDia: 1, dica: "Desligar a TV quando ninguém estiver assistindo" },
+  lampada_led: { reducaoHorasDia: 1, dica: "Apagar as luzes de cômodos vazios" },
+  ventilador: { reducaoHorasDia: 1, dica: "Desligar o ventilador ao sair do cômodo" },
 };
 
 export const FUSO_SAO_LUIS = "America/Fortaleza";
@@ -81,5 +87,6 @@ export const FONTES = {
   FATOR_EMISSAO_KG_CO2_KWH:
     "Estimativa. Média anual do SIN em 2023 (38,5 kg CO₂/MWh). Fonte: MCTI/SIRENE, fatores de emissão de CO₂ do SIN.",
   PERCENTUAL_ECONOMIA_PADRAO: "Estimativa. Meta didática de 10% com mudança de hábitos. Fonte: PROCEL, dicas de economia.",
-  REGRAS_ECONOMIA: "Estimativa didática: 1 h a menos de ar-condicionado e 10 min a menos de banho por dia.",
+  REGRAS_ECONOMIA:
+    "Estimativa didática: 1 h a menos por dia de ar-condicionado, TV, lâmpada e ventilador, 10 min a menos de banho e 10% a menos de consumo da geladeira (porta aberta e comida quente fazem o compressor trabalhar mais).",
 } as const;

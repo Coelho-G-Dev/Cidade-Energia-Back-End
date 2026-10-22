@@ -15,7 +15,11 @@ const antiga = {
 describe("normalizarResultado", () => {
   it("simulação antiga: hábitos e retorno saem dos campos antigos, o resto vem null", () => {
     expect(normalizarResultado(antiga)).toEqual({
-      ...antiga,
+      consumoKwh: 380,
+      gastoMensal: 312,
+      placas: 6,
+      co2EvitadoKgAno: 191.2,
+      pesos: [],
       economiaHabitosMensal: 31.2,
       economiaSolarMensal: null,
       kwhGeradoMes: null,
@@ -23,6 +27,21 @@ describe("normalizarResultado", () => {
       retornoSolarAnos: 2.5,
       comoCalculamos: null,
     });
+  });
+
+  it("os campos antigos não voltam na resposta", () => {
+    const r = normalizarResultado({ ...antiga, economiaHabitosMensal: 40, retornoSolarAnos: 3 });
+    expect(r).not.toHaveProperty("economiaMensal");
+    expect(r).not.toHaveProperty("retornoAnos");
+    expect(r.economiaHabitosMensal).toBe(40);
+    expect(r.retornoSolarAnos).toBe(3);
+  });
+
+  it("simulação antiga com só economiaMensal ainda preenche a economia de hábitos", () => {
+    const r = normalizarResultado({ consumoKwh: 200, economiaMensal: 16.4 });
+    expect(r.economiaHabitosMensal).toBe(16.4);
+    expect(r.retornoSolarAnos).toBeNull();
+    expect(r).not.toHaveProperty("economiaMensal");
   });
 
   it("simulação nova passa sem mudança", () => {

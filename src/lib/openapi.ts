@@ -43,9 +43,7 @@ const resultadoConta = {
   kwhGeradoMes: 413.9,
   custoSistemaSolar: 9372,
   retornoSolarAnos: 2.5,
-  economiaMensal: 31.2,
   placas: 6,
-  retornoAnos: 2.5,
   co2EvitadoKgAno: 191.2,
   pesos: [],
   comoCalculamos: {
@@ -66,9 +64,7 @@ const resultadoAparelhos = {
   kwhGeradoMes: 138,
   custoSistemaSolar: 3124,
   retornoSolarAnos: 3.6,
-  economiaMensal: 24.44,
   placas: 2,
-  retornoAnos: 3.6,
   co2EvitadoKgAno: 63.7,
   pesos: [{ aparelho: "Chuveiro elétrico", percentual: 100 }],
   comoCalculamos: {
@@ -1397,9 +1393,7 @@ export const especificacaoOpenApi = {
           "kwhGeradoMes",
           "custoSistemaSolar",
           "retornoSolarAnos",
-          "economiaMensal",
           "placas",
-          "retornoAnos",
           "co2EvitadoKgAno",
           "pesos",
           "comoCalculamos",
@@ -1429,17 +1423,7 @@ export const especificacaoOpenApi = {
             type: ["number", "null"],
             description: "Anos para o sistema solar se pagar: custo ÷ (economia solar × 12), com 1 casa.",
           },
-          economiaMensal: {
-            type: "number",
-            deprecated: true,
-            description: "Igual a `economiaHabitosMensal`. Mantido por compatibilidade; use `economiaHabitosMensal`.",
-          },
           placas: { type: "integer", description: "Quantidade de placas solares de 550 Wp para cobrir o consumo." },
-          retornoAnos: {
-            type: "number",
-            deprecated: true,
-            description: "Igual a `retornoSolarAnos`. Mantido por compatibilidade; use `retornoSolarAnos`.",
-          },
           co2EvitadoKgAno: { type: "number", description: "CO₂ evitado por ano com as placas, em kg (1 casa)." },
           pesos: {
             type: "array",

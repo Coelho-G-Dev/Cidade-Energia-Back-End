@@ -8,6 +8,7 @@ import {
   POTENCIA_PLACA_KWP,
   REGRAS_ECONOMIA,
   TARIFA_PADRAO_R_KWH,
+  type RegraEconomia,
 } from "@/lib/config";
 
 export type ItemAparelho = {
@@ -39,9 +40,7 @@ export type ResultadoSimulacao = {
   kwhGeradoMes: number;
   custoSistemaSolar: number;
   retornoSolarAnos: number;
-  economiaMensal: number;
   placas: number;
-  retornoAnos: number;
   co2EvitadoKgAno: number;
   pesos: Peso[];
   comoCalculamos: ComoCalculamos;
@@ -55,7 +54,7 @@ export type Parametros = {
   irradiacao: number;
   fatorEmissao: number;
   percentualEconomiaPadrao: number;
-  regrasEconomia: Readonly<Record<string, { reducaoHorasDia: number; dica?: string }>>;
+  regrasEconomia: Readonly<Record<string, RegraEconomia>>;
 };
 
 export const PARAMETROS_PADRAO: Parametros = {
@@ -138,6 +137,9 @@ export function economiaKwhPorRegras(
   return itens.reduce((soma, item) => {
     const regra = regras[item.codigo];
     if (!regra) return soma;
+    if ("reducaoPercentual" in regra) {
+      return soma + consumoAparelhoKwhMes(item.potenciaW, item.horasDia, item.quantidade) * regra.reducaoPercentual;
+    }
     const horasReduzidas = Math.min(regra.reducaoHorasDia, item.horasDia);
     return soma + consumoAparelhoKwhMes(item.potenciaW, horasReduzidas, item.quantidade);
   }, 0);
@@ -165,6 +167,7 @@ export function co2EvitadoKgAno(kwhGeradoMes: number, fatorEmissao: number): num
 const reais = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const numero = (valor: number, casas = 1) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: casas }).format(valor);
 const minusculaInicial = (texto: string) => texto.charAt(0).toLowerCase() + texto.slice(1);
+const lista = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" });
 const porKwh = (tarifa: number) => `R$ ${numero(tarifa, 4)} por kWh`;
 
 type Habitos =
@@ -189,7 +192,7 @@ export function explicarCalculo(v: Valores, p: Parametros = PARAMETROS_PADRAO): 
       ? `Meta de ${numero(h.percentual * 100)}% da conta com mudança de hábitos, sem investimento: ${reais.format(h.gastoMensal)} × ${numero(h.percentual * 100)}%.`
       : h.dicas.length === 0
         ? "Nenhum aparelho da lista tem uma dica de hábito no simulador, então esta economia fica em zero."
-        : `Mudança de hábitos, sem investimento: ${h.dicas.map(minusculaInicial).join(" e ")}. São ${numero(h.kwhEconomizados)} kWh a menos por mês × ${porKwh(h.tarifa)}.`;
+        : `Mudança de hábitos, sem investimento: ${lista.format(h.dicas.map(minusculaInicial))}. São ${numero(h.kwhEconomizados)} kWh a menos por mês × ${porKwh(h.tarifa)}.`;
 
   const porPlaca = v.kwhGeradoMes / v.placas;
   const total = v.placas === 1 ? "" : ` ${v.placas} placas geram ${numero(v.kwhGeradoMes)} kWh.`;
@@ -261,9 +264,7 @@ export function simular(entrada: EntradaSimulacao, p: Parametros = PARAMETROS_PA
     kwhGeradoMes: arredondar(kwhGeradoMes, 1),
     custoSistemaSolar: arredondar(custoSistema, 2),
     retornoSolarAnos,
-    economiaMensal: habitosArredondado,
     placas,
-    retornoAnos: retornoSolarAnos,
     co2EvitadoKgAno: arredondar(co2EvitadoKgAno(kwhGeradoMes, p.fatorEmissao), 1),
     pesos,
     comoCalculamos: explicarCalculo(

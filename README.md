@@ -326,9 +326,7 @@ Resposta:
   "kwhGeradoMes": 413.9,
   "custoSistemaSolar": 9372,
   "retornoSolarAnos": 2.5,
-  "economiaMensal": 31.2,
   "placas": 6,
-  "retornoAnos": 2.5,
   "co2EvitadoKgAno": 191.2,
   "pesos": [],
   "comoCalculamos": {
@@ -353,7 +351,6 @@ Resposta:
 | `custoSistemaSolar` | Custo estimado do sistema solar instalado (R$) |
 | `retornoSolarAnos` | Em quantos anos as placas se pagam: `custoSistemaSolar ÷ (economiaSolarMensal × 12)` |
 | `comoCalculamos` | Um texto curto, com os números da simulação, para cada um dos 4 campos acima (`economiaHabitos`, `economiaSolar`, `custoSistemaSolar`, `retornoSolar`) |
-| `economiaMensal`, `retornoAnos` | **Obsoletos**: iguais a `economiaHabitosMensal` e `retornoSolarAnos`, mantidos por compatibilidade |
 | `placas` | Quantas placas solares cobririam o consumo |
 | `co2EvitadoKgAno` | CO₂ que as placas evitariam por ano (kg) |
 | `pesos` | Quanto cada aparelho pesa na conta, em %. Vem preenchido só no modo `aparelhos` (do maior para o menor, somando 100) |

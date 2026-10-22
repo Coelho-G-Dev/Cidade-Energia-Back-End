@@ -51,9 +51,7 @@ describe("POST /api/simulacoes", () => {
       kwhGeradoMes: 413.9,
       custoSistemaSolar: 9372,
       retornoSolarAnos: 2.5,
-      economiaMensal: 31.2,
       placas: 6,
-      retornoAnos: 2.5,
       co2EvitadoKgAno: 191.2,
       pesos: [],
       comoCalculamos: {

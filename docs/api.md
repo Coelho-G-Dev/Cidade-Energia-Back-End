@@ -229,9 +229,7 @@ Content-Type: application/json
   "kwhGeradoMes": 413.9,
   "custoSistemaSolar": 9372,
   "retornoSolarAnos": 2.5,
-  "economiaMensal": 31.2,
   "placas": 6,
-  "retornoAnos": 2.5,
   "co2EvitadoKgAno": 191.2,
   "pesos": [],
   "comoCalculamos": {
@@ -268,9 +266,7 @@ Content-Type: application/json
   "kwhGeradoMes": 138,
   "custoSistemaSolar": 3124,
   "retornoSolarAnos": 3.6,
-  "economiaMensal": 24.44,
   "placas": 2,
-  "retornoAnos": 3.6,
   "co2EvitadoKgAno": 63.7,
   "pesos": [{ "aparelho": "Chuveiro elétrico", "percentual": 100 }],
   "comoCalculamos": {
@@ -289,13 +285,26 @@ Como ler os campos:
 
 | Campo | O que é | Fórmula |
 |---|---|---|
-| `economiaHabitosMensal` | Economia mudando hábitos, sem investimento | modo conta: 10% do gasto; modo aparelhos: 1 h a menos de ar e 10 min a menos de banho por dia × tarifa |
+| `economiaHabitosMensal` | Economia mudando hábitos, sem investimento | modo conta: 10% do gasto; modo aparelhos: kWh economizados pelas dicas × tarifa (tabela abaixo) |
 | `economiaSolarMensal` | Economia com as placas solares | mín(kWh gerado, consumo) × tarifa |
 | `kwhGeradoMes` | Energia gerada pelas placas | placas × irradiação × 0,55 kWp × 0,8 × 30 |
 | `custoSistemaSolar` | Custo do sistema instalado | placas × 0,55 kWp × R$ 2.840 |
 | `retornoSolarAnos` | Anos para as placas se pagarem | custo ÷ (economia solar × 12) |
 | `comoCalculamos` | Texto curto, com os números, para cada um dos 4 itens acima | — |
-| `economiaMensal`, `retornoAnos` | **Obsoletos**: iguais a `economiaHabitosMensal` e `retornoSolarAnos` | — |
+
+Dicas de hábito do modo aparelhos (estimativas didáticas, nunca além do uso informado):
+
+| Código | Dica | Regra |
+|---|---|---|
+| `ar_condicionado` | Usar o ar-condicionado 1 hora a menos por dia | 1 h a menos por dia |
+| `chuveiro` | Tomar banhos 10 minutos mais curtos por dia | 10 min a menos por dia |
+| `geladeira` | Abrir a geladeira só quando precisar, sem guardar comida quente | 10% a menos do consumo |
+| `tv` | Desligar a TV quando ninguém estiver assistindo | 1 h a menos por dia |
+| `lampada_led` | Apagar as luzes de cômodos vazios | 1 h a menos por dia, por lâmpada |
+| `ventilador` | Desligar o ventilador ao sair do cômodo | 1 h a menos por dia |
+
+Cada aparelho da lista entra uma vez em `comoCalculamos.economiaHabitos`. Um aparelho sem regra não entra na conta;
+se nenhum tiver regra, `economiaHabitosMensal` é `0` e o texto explica por quê.
 
 A tarifa é o valor da conta ÷ kWh quando ele é informado; senão, a tarifa padrão (R$ 0,8888/kWh).
 
@@ -346,9 +355,7 @@ Authorization: Bearer <token>
     "kwhGeradoMes": null,
     "custoSistemaSolar": null,
     "retornoSolarAnos": 2.5,
-    "economiaMensal": 31.2,
     "placas": 6,
-    "retornoAnos": 2.5,
     "co2EvitadoKgAno": 191.2,
     "pesos": [],
     "comoCalculamos": null

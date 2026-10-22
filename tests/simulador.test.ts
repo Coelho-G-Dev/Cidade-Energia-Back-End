@@ -64,12 +64,22 @@ describe("fórmulas", () => {
     expect(() => retornoAnos(12000, 0)).toThrow(ErroCalculo);
   });
 
-  it("economia por regras: 1 h de ar e 10 min de banho, nunca além do uso", () => {
+  it("economia por regras: 1 h de ar, TV, lâmpada e ventilador, 10 min de banho e 10% da geladeira", () => {
     const kwh = economiaKwhPorRegras(casaTipica, P.regrasEconomia);
-    expect(kwh).toBeCloseTo(30 + 27.5, 10);
+    expect(kwh).toBeCloseTo(30 + 27.5 + 4.32 + 3 + 1.35 + 1.8, 10);
+  });
+
+  it("economia por regras nunca vai além do uso", () => {
     const banhoCurto = [item("chuveiro", "Chuveiro", 5500, 0.1)];
     expect(economiaKwhPorRegras(banhoCurto, P.regrasEconomia)).toBeCloseTo(consumoAparelhoKwhMes(5500, 0.1, 1), 10);
-    expect(economiaKwhPorRegras([item("tv", "TV", 100, 5)], P.regrasEconomia)).toBe(0);
+    const tvPouca = [item("tv", "TV", 100, 0.5)];
+    expect(economiaKwhPorRegras(tvPouca, P.regrasEconomia)).toBeCloseTo(consumoAparelhoKwhMes(100, 0.5, 1), 10);
+  });
+
+  it("economia por regras conta a quantidade e ignora aparelho sem regra", () => {
+    expect(economiaKwhPorRegras([item("lampada_led", "Lâmpada LED", 9, 6, 5)], P.regrasEconomia)).toBeCloseTo(1.35, 10);
+    expect(economiaKwhPorRegras([item("geladeira", "Geladeira", 60, 24, 2)], P.regrasEconomia)).toBeCloseTo(8.64, 10);
+    expect(economiaKwhPorRegras([item("micro_ondas", "Micro-ondas", 1200, 0.2)], P.regrasEconomia)).toBe(0);
   });
 });
 
@@ -108,9 +118,7 @@ describe("simular — modo conta", () => {
       kwhGeradoMes: 427.7,
       custoSistemaSolar: 13200,
       retornoSolarAnos: 3.5,
-      economiaMensal: 31.2,
       placas: 6,
-      retornoAnos: 3.5,
       co2EvitadoKgAno: 197.6,
       pesos: [],
       comoCalculamos: {
@@ -129,8 +137,6 @@ describe("simular — modo conta", () => {
   it("separa a economia de hábitos da economia solar, e o retorno usa só a solar", () => {
     const r = simular({ modo: "conta", consumoKwh: 380, valorConta: 312 }, P);
     expect(r.economiaHabitosMensal).not.toBe(r.economiaSolarMensal);
-    expect(r.economiaMensal).toBe(r.economiaHabitosMensal);
-    expect(r.retornoAnos).toBe(r.retornoSolarAnos);
     expect(r.retornoSolarAnos).toBe(arredondar(r.custoSistemaSolar / (r.economiaSolarMensal * 12), 1));
     expect(r.retornoSolarAnos).not.toBe(arredondar(r.custoSistemaSolar / (r.economiaHabitosMensal * 12), 1));
   });
@@ -149,7 +155,7 @@ describe("simular — modo conta", () => {
   it("sem valor da conta usa a tarifa padrão", () => {
     const r = simular({ modo: "conta", consumoKwh: 200 }, P);
     expect(r.gastoMensal).toBe(164);
-    expect(r.economiaMensal).toBe(16.4);
+    expect(r.economiaHabitosMensal).toBe(16.4);
     expect(r.placas).toBe(3);
   });
 
@@ -157,7 +163,7 @@ describe("simular — modo conta", () => {
     const r = simular({ modo: "conta", consumoKwh: 123.456, valorConta: 100.555 }, P);
     expect(r.consumoKwh).toBe(123.5);
     expect(r.gastoMensal).toBe(100.56);
-    expect(r.economiaMensal).toBe(10.06);
+    expect(r.economiaHabitosMensal).toBe(10.06);
   });
 
   it.each([0, -10, Number.NaN, Number.POSITIVE_INFINITY])("recusa consumo inválido (%s)", (consumoKwh) => {
@@ -178,17 +184,26 @@ describe("simular — modo aparelhos", () => {
     expect(r.gastoMensal).toBe(330.62);
   });
 
-  it("economia de hábitos vem das regras (57,5 kWh × 0,82)", () => {
-    expect(r.economiaHabitosMensal).toBe(47.15);
-    expect(r.economiaMensal).toBe(47.15);
+  it("economia de hábitos vem das regras (67,97 kWh × 0,82)", () => {
+    expect(r.economiaHabitosMensal).toBe(55.74);
     expect(r.comoCalculamos.economiaHabitos).toBe(
-      "Mudança de hábitos, sem investimento: usar o ar-condicionado 1 hora a menos por dia e tomar banhos 10 minutos mais curtos por dia." +
-        " São 57,5 kWh a menos por mês × R$ 0,82 por kWh.",
+      "Mudança de hábitos, sem investimento: usar o ar-condicionado 1 hora a menos por dia, tomar banhos 10 minutos mais curtos por dia," +
+        " abrir a geladeira só quando precisar, sem guardar comida quente, desligar a TV quando ninguém estiver assistindo," +
+        " apagar as luzes de cômodos vazios e desligar o ventilador ao sair do cômodo. São 68 kWh a menos por mês × R$ 0,82 por kWh.",
+    );
+  });
+
+  it("duas dicas ficam ligadas por \"e\"", () => {
+    const s = simular({ modo: "aparelhos", itens: [item("tv", "TV", 100, 5), item("ventilador", "Ventilador", 60, 8)] }, P);
+    expect(s.economiaHabitosMensal).toBe(3.94);
+    expect(s.comoCalculamos.economiaHabitos).toBe(
+      "Mudança de hábitos, sem investimento: desligar a TV quando ninguém estiver assistindo e desligar o ventilador ao sair do cômodo." +
+        " São 4,8 kWh a menos por mês × R$ 0,82 por kWh.",
     );
   });
 
   it("sem aparelho com dica, a economia de hábitos é zero e o texto explica", () => {
-    const s = simular({ modo: "aparelhos", itens: [item("tv", "TV", 100, 5)] }, P);
+    const s = simular({ modo: "aparelhos", itens: [item("micro_ondas", "Micro-ondas", 1200, 0.2)] }, P);
     expect(s.economiaHabitosMensal).toBe(0);
     expect(s.comoCalculamos.economiaHabitos).toBe(
       "Nenhum aparelho da lista tem uma dica de hábito no simulador, então esta economia fica em zero.",
@@ -213,7 +228,6 @@ describe("simular — modo aparelhos", () => {
     expect(r.custoSistemaSolar).toBe(13200);
     expect(r.economiaSolarMensal).toBe(330.62);
     expect(r.retornoSolarAnos).toBe(3.3);
-    expect(r.retornoAnos).toBe(3.3);
     expect(r.co2EvitadoKgAno).toBe(197.6);
   });
 
