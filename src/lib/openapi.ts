@@ -52,7 +52,7 @@ const resultadoConta = {
     economiaHabitos: "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
     economiaSolar:
       "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). " +
-      "6 placas geram 413,9 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh.",
+      "6 placas geram 413,9 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh. A conta de luz ainda cobra uma taxa mínima, que as placas não zeram.",
     custoSistemaSolar: "6 × 0,55 kWp × R$ 2.840,00 por kWp instalado = R$ 9.372,00 (preço médio de mercado, estimativa).",
     retornoSolar: "R$ 9.372,00 ÷ (R$ 312,00 × 12 meses) = 2,5 anos. Usa a economia com energia solar, não a de hábitos.",
   },
@@ -76,7 +76,7 @@ const resultadoAparelhos = {
       "Mudança de hábitos, sem investimento: tomar banhos 10 minutos mais curtos por dia. São 27,5 kWh a menos por mês × R$ 0,8888 por kWh.",
     economiaSolar:
       "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). " +
-      "2 placas geram 138 kWh. A economia é a energia gerada, até o seu consumo de 82,5 kWh, × R$ 0,8888 por kWh.",
+      "2 placas geram 138 kWh. A economia é a energia gerada, até o seu consumo de 82,5 kWh, × R$ 0,8888 por kWh. A conta de luz ainda cobra uma taxa mínima, que as placas não zeram.",
     custoSistemaSolar: "2 × 0,55 kWp × R$ 2.840,00 por kWp instalado = R$ 3.124,00 (preço médio de mercado, estimativa).",
     retornoSolar: "R$ 3.124,00 ÷ (R$ 73,33 × 12 meses) = 3,6 anos. Usa a economia com energia solar, não a de hábitos.",
   },
@@ -323,8 +323,13 @@ export const especificacaoOpenApi = {
               },
             }),
           },
+          "409": respostaErro(
+            "A escola escolhida não está mais ativa.",
+            "ESCOLA_INATIVA",
+            "Essa escola não está mais disponível. Escolha outra.",
+          ),
           "429": respostaErro(
-            "Limite de trocas de bairro ou escola atingido.",
+            "Limite de trocas de bairro ou escola atingido (`LIMITE_DE_TROCAS`) ou muitas ações seguidas do mesmo perfil (`LIMITE_DE_REQUISICOES`, 120 a cada 10 minutos).",
             "LIMITE_DE_TROCAS",
             "Você atingiu o limite de trocas de bairro ou escola. Você poderá trocar de novo a partir de 14/11 às 15:30.",
           ),
@@ -408,7 +413,7 @@ export const especificacaoOpenApi = {
             `Aparelho ${UUID_APARELHO} não existe.`,
           ),
           "429": respostaErro(
-            "Muitas simulações seguidas: sem login, do mesmo endereço no último minuto; com login, do mesmo perfil em 10 minutos.",
+            "Sem login: muitas simulações do mesmo endereço no último minuto. Com login: muitas ações do mesmo perfil (120 a cada 10 minutos, somando as rotas que gravam; a mensagem fala em ações).",
             "LIMITE_DE_REQUISICOES",
             "Muitas simulações seguidas. Espere um pouco e tente de novo.",
           ),
@@ -733,6 +738,11 @@ export const especificacaoOpenApi = {
             "LICAO_BLOQUEADA",
             'Conclua antes a lição "O sol de São Luís".',
           ),
+          "429": respostaErro(
+            "Muitas ações seguidas do mesmo perfil: 120 a cada 10 minutos, somando as rotas que gravam.",
+            "LIMITE_DE_REQUISICOES",
+            "Muitas ações seguidas. Espere um pouco e tente de novo.",
+          ),
           "500": { $ref: "#/components/responses/ErroInterno" },
         },
       },
@@ -846,6 +856,11 @@ export const especificacaoOpenApi = {
             "LICAO_NAO_CONCLUIDA",
             "Leia a lição antes de responder o quiz.",
           ),
+          "429": respostaErro(
+            "Muitas ações seguidas do mesmo perfil: 120 a cada 10 minutos, somando as rotas que gravam.",
+            "LIMITE_DE_REQUISICOES",
+            "Muitas ações seguidas. Espere um pouco e tente de novo.",
+          ),
           "500": { $ref: "#/components/responses/ErroInterno" },
         },
       },
@@ -883,6 +898,11 @@ export const especificacaoOpenApi = {
             "Falta concluir uma lição anterior da trilha.",
             "LICAO_BLOQUEADA",
             'Conclua antes a lição "Como a placa solar funciona".',
+          ),
+          "429": respostaErro(
+            "Muitas ações seguidas do mesmo perfil: 120 a cada 10 minutos, somando as rotas que gravam.",
+            "LIMITE_DE_REQUISICOES",
+            "Muitas ações seguidas. Espere um pouco e tente de novo.",
           ),
           "500": { $ref: "#/components/responses/ErroInterno" },
         },
@@ -957,6 +977,11 @@ export const especificacaoOpenApi = {
           "400": respostaErro("ID inválido.", "ENTRADA_INVALIDA", "Identificador inválido."),
           "401": { $ref: "#/components/responses/NaoAutenticado" },
           "404": respostaErro("Missão não encontrada.", "MISSAO_NAO_ENCONTRADA", "Missão não encontrada."),
+          "429": respostaErro(
+            "Muitas ações seguidas do mesmo perfil: 120 a cada 10 minutos, somando as rotas que gravam.",
+            "LIMITE_DE_REQUISICOES",
+            "Muitas ações seguidas. Espere um pouco e tente de novo.",
+          ),
           "500": { $ref: "#/components/responses/ErroInterno" },
         },
       },
@@ -969,7 +994,8 @@ export const especificacaoOpenApi = {
           "Soma dos pontos dos estudantes de cada bairro ou escola, sem nenhum dado individual.",
           "Os pontos acompanham o bairro e a escola **atuais** do estudante. Empates dividem a posição.",
           "No ranking de escolas, só contam os estudantes que entraram pelo código de turma (`escola_verificada`).",
-          "Só aparecem bairros e escolas com **pelo menos 1 ponto**: enquanto ninguém pontuar, a lista vem vazia.",
+          "Só aparecem bairros e escolas com **pelo menos 3 estudantes com pontos**, para que a soma não revele os pontos",
+          "de ninguém. Perfis de teste não contam. Enquanto nenhum bairro ou escola chegar a 3, a lista vem vazia.",
         ].join("\n"),
         operationId: "listarRanking",
         security: [],

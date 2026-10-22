@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PONTOS_POR_ORIGEM } from "@/lib/config";
+import { PONTOS_BAIRRO_UNIDO, PONTOS_POR_ORIGEM } from "@/lib/config";
 import { conquistasMerecidas, trilhasConcluidas, type Origem, type RetratoUsuario } from "@/lib/gamificacao/regras";
 import { erroDoBanco, naoEncontrado } from "@/lib/http/erros";
 
@@ -33,7 +33,7 @@ export async function concederPontos(
   return (data ?? []).reduce((soma: number, linha: { pontos: number }) => soma + linha.pontos, 0);
 }
 
-async function carregarRetrato(admin: SupabaseClient, perfilId: string): Promise<RetratoUsuario> {
+async function carregarRetrato(admin: SupabaseClient, perfilId: string): Promise<RetratoUsuario & { bairroId: string | null }> {
   const [simulacoes, trilhas, licoes, progresso, missoesFeitas, missoes, perfil] = await Promise.all([
     admin.from("simulacoes").select("id", { count: "exact", head: true }).eq("perfil_id", perfilId),
     admin.from("trilhas").select("id, slug"),
@@ -70,7 +70,13 @@ async function carregarRetrato(admin: SupabaseClient, perfilId: string): Promise
       .map((e: { referencia_id: string }) => slugPorMissao.get(e.referencia_id))
       .filter((s): s is string => Boolean(s)),
     pontosBairro,
+    bairroId,
   };
+}
+
+async function concederBairroUnidoAoBairro(admin: SupabaseClient, bairroId: string): Promise<void> {
+  const { error } = await admin.rpc("conceder_bairro_unido", { p_bairro: bairroId, p_pontos_minimos: PONTOS_BAIRRO_UNIDO });
+  if (error) console.error(`Bairro unido para o bairro: ${error.message}`);
 }
 
 export async function avaliarConquistas(admin: SupabaseClient, perfilId: string): Promise<ConquistaNova[]> {
@@ -92,6 +98,7 @@ export async function avaliarConquistas(admin: SupabaseClient, perfilId: string)
     )
     .select("conquista_slug");
   if (error) throw erroDoBanco(error);
+  if (retrato.bairroId && merecidas.includes("bairro_unido")) await concederBairroUnidoAoBairro(admin, retrato.bairroId);
 
   return (data ?? []).map((c: { conquista_slug: string }) => ({
     slug: c.conquista_slug,

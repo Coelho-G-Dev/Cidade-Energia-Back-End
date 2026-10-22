@@ -1,3 +1,4 @@
+import { limitarAcoes } from "@/lib/dados/limites";
 import { atualizarPerfil, obterPerfil } from "@/lib/dados/perfis";
 import { tratarErro } from "@/lib/http/erros";
 import { exigirSessao } from "@/lib/supabase/servidor";
@@ -15,6 +16,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     const { supabase, usuarioId } = await exigirSessao(request);
+    await limitarAcoes(usuarioId);
     const dados = atualizarPerfilSchema.parse(await request.json());
     return Response.json(await atualizarPerfil(supabase, usuarioId, dados));
   } catch (e) {

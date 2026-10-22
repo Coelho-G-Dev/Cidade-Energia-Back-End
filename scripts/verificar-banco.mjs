@@ -58,6 +58,20 @@ async function entrarAnonimo() {
   return { cliente, id: data.user.id, token: data.session.access_token };
 }
 
+async function participantesDeApoio(quantidade, { bairroId, codigoTurma }) {
+  for (let i = 0; i < quantidade; i++) {
+    const u = await entrarAnonimo();
+    const { data: escolaId, error: erroTurma } = await u.cliente.rpc("resolver_codigo_turma", { p_codigo: codigoTurma });
+    if (erroTurma || !escolaId) throw new Error(`Apoio: turma não resolvida (${erroTurma?.message ?? "sem escola"})`);
+    const perfil = await u.cliente.from("perfis").update({ primeiro_nome: "Apoio", bairro_id: bairroId, escola_id: escolaId }).eq("id", u.id);
+    if (perfil.error) throw new Error(`Apoio: perfil não salvo (${perfil.error.message})`);
+    const turma = await u.cliente.rpc("confirmar_turma", { p_codigo: codigoTurma });
+    if (turma.error || turma.data !== true) throw new Error("Apoio: turma não confirmada");
+    const ponto = await admin.from("pontos_eventos").insert({ perfil_id: u.id, origem: "primeira_simulacao", referencia_id: u.id, pontos: 1 });
+    if (ponto.error) throw new Error(`Apoio: ponto não gravado (${ponto.error.message})`);
+  }
+}
+
 async function verificarBanco() {
   const anon = novoCliente();
 
@@ -67,7 +81,7 @@ async function verificarBanco() {
   const aparelhos = await anon.from("aparelhos").select("id, codigo, potencia_w");
   checar("lê os 6 aparelhos", !aparelhos.error && aparelhos.data.length === 6, aparelhos.error?.message);
   const escolas = await anon.from("escolas").select("id, nome, bairro_id");
-  checar("lê escolas (colunas públicas)", !escolas.error && escolas.data.length === 3, escolas.error?.message);
+  checar("lê escolas (colunas públicas)", !escolas.error && escolas.data.length > 3, escolas.error?.message);
   const codigo = await anon.from("escolas").select("codigo_turma");
   checar("NÃO lê codigo_turma", Boolean(codigo.error));
   const estrela = await anon.from("escolas").select("*");
@@ -190,6 +204,14 @@ async function verificarRotas({ A, B, bairroId }) {
     body: { primeiro_nome: "Bia", bairro_id: bairroId, codigo_turma: "ZZZZ99" },
   });
   checar("PUT com turma inexistente → 404", turmaRuim.status === 404 && turmaRuim.corpo.erro?.codigo === "TURMA_NAO_ENCONTRADA");
+  const inativa = (await admin.from("escolas").select("id, bairro_id").eq("ativa", false).limit(1)).data?.[0];
+  if (inativa) {
+    const escolaInativa = await chamar("PUT", "/api/perfil", {
+      token: B.token,
+      body: { primeiro_nome: "Bia", bairro_id: inativa.bairro_id, escola_id: inativa.id },
+    });
+    checar("PUT com escola inativa → 409 ESCOLA_INATIVA", escolaInativa.status === 409 && escolaInativa.corpo.erro?.codigo === "ESCOLA_INATIVA", JSON.stringify(escolaInativa.corpo));
+  }
   const bairroRuim = await chamar("PUT", "/api/perfil", {
     token: B.token,
     body: { primeiro_nome: "Bia", bairro_id: "00000000-0000-4000-8000-000000000000" },
@@ -260,6 +282,12 @@ async function verificarBancoDia2({ A, B }) {
   }
   const ranking = await anon.from("ranking_escolas").select("escola_id, nome, pontos, participantes, posicao");
   checar("lê ranking_escolas (só quem tem pontos)", !ranking.error && ranking.data.every((r) => r.pontos > 0), ranking.error?.message);
+  const bairrosRanking = await anon.from("ranking_bairros").select("participantes");
+  checar(
+    "rankings só listam quem tem 3 participantes ou mais",
+    !bairrosRanking.error && [...ranking.data, ...bairrosRanking.data].every((r) => r.participantes >= 3),
+    bairrosRanking.error?.message,
+  );
   checar("ranking_escolas não expõe perfil_id", Boolean((await anon.from("ranking_escolas").select("perfil_id")).error));
   checar("ranking_escolas não expõe primeiro_nome", Boolean((await anon.from("ranking_escolas").select("primeiro_nome")).error));
   const resumoAnon = await anon.from("perfil_resumo").select("*");
@@ -349,6 +377,7 @@ async function verificarRotasDia2({ A, B }) {
   checar("com a lição concluída, o quiz pode pontuar", quiz.corpo.licaoConcluida === true && quiz.corpo.perguntas.every((p) => p.podePontuar));
 
   const perfilA = await chamar("GET", "/api/perfil", { token: A.token });
+  await participantesDeApoio(2, { bairroId: perfilA.corpo.bairro_id, codigoTurma: TURMA_1 });
   const pontosEscola = async () =>
     (await chamar("GET", "/api/rankings?tipo=escolas")).corpo.find((e) => e.id === perfilA.corpo.escola_id)?.pontos ?? 0;
   const escolaAntes = await pontosEscola();
@@ -627,6 +656,7 @@ async function verificarFluxoCompleto() {
 
   const C = await entrarAnonimo();
   const bairro = (await chamar("GET", "/api/bairros")).corpo[0];
+  await participantesDeApoio(3, { bairroId: bairro.id, codigoTurma: TURMA_1 });
   const perfil = await chamar("PUT", "/api/perfil", {
     token: C.token,
     body: { primeiro_nome: "Caio", bairro_id: bairro.id, codigo_turma: TURMA_1 },

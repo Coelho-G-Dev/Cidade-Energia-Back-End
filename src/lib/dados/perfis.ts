@@ -96,6 +96,7 @@ export async function obterResumo(supabase: SupabaseClient, usuarioId: string): 
 }
 
 const CODIGO_LIMITE_TROCAS = "CE001";
+const CODIGO_ESCOLA_INATIVA = "CE002";
 
 const formatoLiberacao = new Intl.DateTimeFormat("pt-BR", {
   timeZone: FUSO_SAO_LUIS,
@@ -155,6 +156,9 @@ export async function atualizarPerfil(
   if (error) {
     if (error.code === CODIGO_LIMITE_TROCAS) {
       throw new ErroApi(429, "LIMITE_DE_TROCAS", mensagemLimiteTrocas(error.hint ? new Date(error.hint) : null));
+    }
+    if (error.code === CODIGO_ESCOLA_INATIVA) {
+      throw new ErroApi(409, "ESCOLA_INATIVA", "Essa escola não está mais disponível. Escolha outra.");
     }
     const convertido = erroDoBanco(error);
     if (convertido instanceof ErroApi) {

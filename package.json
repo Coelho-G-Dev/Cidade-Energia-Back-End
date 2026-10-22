@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verificar:banco": "node scripts/verificar-banco.mjs",
-    "indexar": "tsx --conditions=react-server scripts/indexar.ts"
+    "indexar": "tsx --conditions=react-server scripts/indexar.ts",
+    "limpar:anonimos": "node scripts/limpar-anonimos.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

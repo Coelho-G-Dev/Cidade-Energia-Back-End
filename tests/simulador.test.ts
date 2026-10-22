@@ -117,7 +117,8 @@ describe("simular — modo conta", () => {
         economiaHabitos: "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
         economiaSolar:
           "Cada placa de 550 W gera cerca de 71,3 kWh por mês com o sol de São Luís (5,4 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias)." +
-          " 6 placas geram 427,7 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh.",
+          " 6 placas geram 427,7 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh." +
+          " A conta de luz ainda cobra uma taxa mínima, que as placas não zeram.",
         custoSistemaSolar: "6 × 0,55 kWp × R$ 4.000,00 por kWp instalado = R$ 13.200,00 (preço médio de mercado, estimativa).",
         retornoSolar:
           "R$ 13.200,00 ÷ (R$ 312,00 × 12 meses) = 3,5 anos. Usa a economia com energia solar, não a de hábitos.",

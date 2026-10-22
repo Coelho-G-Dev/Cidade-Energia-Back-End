@@ -1,7 +1,9 @@
 import { createHmac } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  JANELA_LIMITE_ACOES_POR_PERFIL,
   JANELA_LIMITE_PREVIA_POR_PERFIL,
+  LIMITE_ACOES_POR_PERFIL,
   LIMITE_PREVIA_POR_PERFIL,
   LIMITE_SIMULACAO_PUBLICA_POR_MINUTO,
 } from "@/lib/config";
@@ -19,7 +21,19 @@ export function chaveDoLimite(escopo: string, ip: string, segredo: string): stri
   return `${escopo}:${createHmac("sha256", segredo).update(ip).digest("hex")}`;
 }
 
-export type RegraDeLimite = { chave: string; limite: number; janela: string };
+export type RegraDeLimite = { chave: string; limite: number; janela: string; mensagem?: string };
+
+const MENSAGEM_SIMULACOES = "Muitas simulações seguidas. Espere um pouco e tente de novo.";
+const MENSAGEM_ACOES = "Muitas ações seguidas. Espere um pouco e tente de novo.";
+
+export function regraDasAcoes(usuarioId: string): RegraDeLimite {
+  return {
+    chave: `acoes:perfil:${usuarioId}`,
+    limite: LIMITE_ACOES_POR_PERFIL,
+    janela: JANELA_LIMITE_ACOES_POR_PERFIL,
+    mensagem: MENSAGEM_ACOES,
+  };
+}
 
 export function regraDaSimulacao(usuarioId: string | null, ip: string, segredo: string): RegraDeLimite {
   if (usuarioId) {
@@ -28,7 +42,10 @@ export function regraDaSimulacao(usuarioId: string | null, ip: string, segredo: 
   return { chave: chaveDoLimite("simulacao", ip, segredo), limite: LIMITE_SIMULACAO_PUBLICA_POR_MINUTO, janela: "1 minute" };
 }
 
-export async function consumirLimitePublico(admin: SupabaseClient, { chave, limite, janela }: RegraDeLimite): Promise<void> {
+export async function consumirLimitePublico(
+  admin: SupabaseClient,
+  { chave, limite, janela, mensagem = MENSAGEM_SIMULACOES }: RegraDeLimite,
+): Promise<void> {
   const { data, error } = await admin
     .rpc("consumir_limite_publico", { p_chave: chave, p_limite: limite, p_janela: janela })
     .single<{ permitido: boolean; liberado_em: string | null }>();
@@ -37,8 +54,12 @@ export async function consumirLimitePublico(admin: SupabaseClient, { chave, limi
     return;
   }
   if (!data.permitido) {
-    throw new ErroApi(429, "LIMITE_DE_REQUISICOES", "Muitas simulações seguidas. Espere um pouco e tente de novo.");
+    throw new ErroApi(429, "LIMITE_DE_REQUISICOES", mensagem);
   }
+}
+
+export async function limitarAcoes(usuarioId: string): Promise<void> {
+  await consumirLimitePublico(clienteAdmin(), regraDasAcoes(usuarioId));
 }
 
 export async function limitarSimulacao(request: Request, usuarioId: string | null): Promise<void> {

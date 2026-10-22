@@ -158,7 +158,9 @@ Erros:
 - `401 NAO_AUTENTICADO`;
 - `404 TURMA_NAO_ENCONTRADA`;
 - `404 BAIRRO_OU_ESCOLA_NAO_ENCONTRADO`;
-- `429 LIMITE_DE_TROCAS`.
+- `409 ESCOLA_INATIVA` (a escola escolhida foi desativada; quem já estava nela pode continuar atualizando o perfil);
+- `429 LIMITE_DE_TROCAS`;
+- `429 LIMITE_DE_REQUISICOES` (muitas ações seguidas do mesmo perfil).
 
 ### GET /api/perfil/resumo
 
@@ -234,7 +236,7 @@ Content-Type: application/json
   "pesos": [],
   "comoCalculamos": {
     "economiaHabitos": "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
-    "economiaSolar": "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). 6 placas geram 413,9 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh.",
+    "economiaSolar": "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). 6 placas geram 413,9 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh. A conta de luz ainda cobra uma taxa mínima, que as placas não zeram.",
     "custoSistemaSolar": "6 × 0,55 kWp × R$ 2.840,00 por kWp instalado = R$ 9.372,00 (preço médio de mercado, estimativa).",
     "retornoSolar": "R$ 9.372,00 ÷ (R$ 312,00 × 12 meses) = 2,5 anos. Usa a economia com energia solar, não a de hábitos."
   },
@@ -273,7 +275,7 @@ Content-Type: application/json
   "pesos": [{ "aparelho": "Chuveiro elétrico", "percentual": 100 }],
   "comoCalculamos": {
     "economiaHabitos": "Mudança de hábitos, sem investimento: tomar banhos 10 minutos mais curtos por dia. São 27,5 kWh a menos por mês × R$ 0,8888 por kWh.",
-    "economiaSolar": "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). 2 placas geram 138 kWh. A economia é a energia gerada, até o seu consumo de 82,5 kWh, × R$ 0,8888 por kWh.",
+    "economiaSolar": "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). 2 placas geram 138 kWh. A economia é a energia gerada, até o seu consumo de 82,5 kWh, × R$ 0,8888 por kWh. A conta de luz ainda cobra uma taxa mínima, que as placas não zeram.",
     "custoSistemaSolar": "2 × 0,55 kWp × R$ 2.840,00 por kWp instalado = R$ 3.124,00 (preço médio de mercado, estimativa).",
     "retornoSolar": "R$ 3.124,00 ÷ (R$ 73,33 × 12 meses) = 3,6 anos. Usa a economia com energia solar, não a de hábitos."
   },
@@ -297,7 +299,7 @@ Como ler os campos:
 
 A tarifa é o valor da conta ÷ kWh quando ele é informado; senão, a tarifa padrão (R$ 0,8888/kWh).
 
-Erros: `400 ENTRADA_INVALIDA`, `400 JSON_INVALIDO`, `404 APARELHO_NAO_ENCONTRADO`, `429 LIMITE_DE_REQUISICOES` (só sem login).
+Erros: `400 ENTRADA_INVALIDA`, `400 JSON_INVALIDO`, `404 APARELHO_NAO_ENCONTRADO`, `429 LIMITE_DE_REQUISICOES` (sem login, por endereço; com login, pelo limite de ações do perfil).
 
 ### POST /api/simulacoes/previa
 
@@ -719,7 +721,7 @@ Erros: `400 ENTRADA_INVALIDA`, `401 NAO_AUTENTICADO`, `404 MISSAO_NAO_ENCONTRADA
 
 ### GET /api/rankings
 
-Ranking de bairros (`?tipo=bairros`) ou de escolas (`?tipo=escolas`). Traz só os totais, sem dados individuais, e só quem tem pelo menos 1 ponto. No ranking de escolas, só contam os estudantes que entraram pelo código de turma (`escola_verificada`).
+Ranking de bairros (`?tipo=bairros`) ou de escolas (`?tipo=escolas`). Traz só os totais, sem dados individuais, e só bairros e escolas com **pelo menos 3 estudantes com pontos**, para que a soma não revele os pontos de ninguém. Perfis de teste não contam. Enquanto nenhum chegar a 3, a lista vem vazia. No ranking de escolas, só contam os estudantes que entraram pelo código de turma (`escola_verificada`).
 
 ```http
 GET /api/rankings?tipo=escolas
@@ -789,9 +791,10 @@ Erros: `400 ENTRADA_INVALIDA`.
 | 404 | `MISSAO_NAO_ENCONTRADA` | Missão não existe |
 | 409 | `LICAO_BLOQUEADA` | Falta concluir uma lição anterior da mesma trilha (a mensagem diz qual) |
 | 409 | `LICAO_NAO_CONCLUIDA` | Resposta do quiz antes de concluir a lição |
+| 409 | `ESCOLA_INATIVA` | A escola escolhida no perfil foi desativada |
 | 405 | `METODO_NAO_PERMITIDO` | A rota não aceita esse método (veja o cabeçalho `Allow`) |
 | 429 | `LIMITE_DE_TROCAS` | 3 trocas de bairro ou escola nos últimos 30 dias |
 | 429 | `LIMITE_TUTOR` | 20 mensagens ao tutor na última hora |
-| 429 | `LIMITE_DE_REQUISICOES` | Muitas simulações seguidas (sem login, por endereço; na prévia com login, por perfil) |
+| 429 | `LIMITE_DE_REQUISICOES` | Muitas simulações seguidas (sem login, por endereço; na prévia com login, por perfil) ou muitas ações seguidas do mesmo perfil: 120 a cada 10 minutos, somando concluir lição, Pedale, quiz, missões, perfil e simulação com login |
 | 500 | `ERRO_INTERNO` | Erro inesperado |
 | 503 | `TUTOR_INDISPONIVEL` | O serviço de IA não respondeu |

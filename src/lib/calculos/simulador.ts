@@ -198,7 +198,8 @@ export function explicarCalculo(v: Valores, p: Parametros = PARAMETROS_PADRAO): 
     economiaSolar:
       `Cada placa de ${numero(p.potenciaPlacaKwp * 1000, 0)} W gera cerca de ${numero(porPlaca)} kWh por mês com o sol de São Luís ` +
       `(${numero(p.irradiacao, 2)} kWh/m² por dia × ${numero(p.potenciaPlacaKwp, 2)} kWp × ${numero(p.fatorPerdas, 2)} × ${DIAS_POR_MES} dias).` +
-      `${total} A economia é a energia gerada, até o seu consumo de ${numero(v.consumoKwh)} kWh, × ${porKwh(v.tarifa)}.`,
+      `${total} A economia é a energia gerada, até o seu consumo de ${numero(v.consumoKwh)} kWh, × ${porKwh(v.tarifa)}.` +
+      " A conta de luz ainda cobra uma taxa mínima, que as placas não zeram.",
     custoSistemaSolar:
       `${v.placas} × ${numero(p.potenciaPlacaKwp, 2)} kWp × ${reais.format(p.custoPorKwp)} por kWp instalado = ` +
       `${reais.format(v.custoSistema)} (preço médio de mercado, estimativa).`,

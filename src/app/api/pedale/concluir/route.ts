@@ -1,3 +1,4 @@
+import { limitarAcoes } from "@/lib/dados/limites";
 import { concluirLicao } from "@/lib/dados/trilhas";
 import { tratarErro } from "@/lib/http/erros";
 import { clienteAdmin } from "@/lib/supabase/admin";
@@ -7,6 +8,7 @@ import { pedaleSchema } from "@/lib/validacao/conteudo";
 export async function POST(request: Request) {
   try {
     const { usuarioId } = await exigirSessao(request);
+    await limitarAcoes(usuarioId);
     const { licaoId } = pedaleSchema.parse(await request.json());
     return Response.json(await concluirLicao(clienteAdmin(), usuarioId, licaoId, "pedale"));
   } catch (e) {

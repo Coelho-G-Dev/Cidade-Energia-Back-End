@@ -9,6 +9,7 @@
 @pedaleId = COLE_O_ID_DA_LICAO_PEDALE
 @perguntaId = COLE_UM_ID_DE_GET_/api/licoes/{id}/quiz
 @missaoId = COLE_UM_ID_DE_GET_/api/missoes
+@codigoTurma = COLE_UM_CODIGO_DE_TURMA_DO_PROFESSOR
 
 ### Login anônimo no Supabase (gera o token)
 # @name login
@@ -40,7 +41,7 @@ PUT {{baseUrl}}/api/perfil
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{ "primeiro_nome": "Ana", "bairro_id": "{{bairroId}}", "codigo_turma": "SOL2026" }
+{ "primeiro_nome": "Ana", "bairro_id": "{{bairroId}}", "codigo_turma": "{{codigoTurma}}" }
 
 ### Resumo: pontos, conquistas e ranking
 GET {{baseUrl}}/api/perfil/resumo

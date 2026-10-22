@@ -12,7 +12,7 @@ vi.mock("@/lib/dados/irradiacao", () => ({
 }));
 
 const limitar = vi.hoisted(() => vi.fn(async () => {}));
-vi.mock("@/lib/dados/limites", () => ({ limitarSimulacao: limitar }));
+vi.mock("@/lib/dados/limites", () => ({ limitarSimulacao: limitar, limitarAcoes: limitar }));
 
 const URL_BASE = "http://localhost:3000";
 

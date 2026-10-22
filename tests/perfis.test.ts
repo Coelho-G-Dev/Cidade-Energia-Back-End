@@ -108,6 +108,15 @@ describe("limite de trocas de bairro ou escola", () => {
     });
   });
 
+  it("escola inativa (CE002) vira 409 ESCOLA_INATIVA", async () => {
+    const { cliente } = supabaseFalso(() => ({ error: { code: "CE002", message: "Escola inativa" } }));
+    await expect(atualizarPerfil(cliente, PERFIL, { primeiro_nome: "Ana", bairro_id: BAIRRO })).rejects.toMatchObject({
+      status: 409,
+      codigo: "ESCOLA_INATIVA",
+      message: "Essa escola não está mais disponível. Escolha outra.",
+    });
+  });
+
   it("bairro inexistente continua sendo 404", async () => {
     const { cliente } = supabaseFalso(() => ({ error: { code: "23503", message: "fk" } }));
     await expect(atualizarPerfil(cliente, PERFIL, { primeiro_nome: "Ana", bairro_id: BAIRRO })).rejects.toMatchObject({

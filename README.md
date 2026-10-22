@@ -333,7 +333,7 @@ Resposta:
   "pesos": [],
   "comoCalculamos": {
     "economiaHabitos": "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
-    "economiaSolar": "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). 6 placas geram 413,9 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh.",
+    "economiaSolar": "Cada placa de 550 W gera cerca de 69 kWh por mês com o sol de São Luís (5,23 kWh/m² por dia × 0,55 kWp × 0,8 × 30 dias). 6 placas geram 413,9 kWh. A economia é a energia gerada, até o seu consumo de 380 kWh, × R$ 0,8211 por kWh. A conta de luz ainda cobra uma taxa mínima, que as placas não zeram.",
     "custoSistemaSolar": "6 × 0,55 kWp × R$ 2.840,00 por kWp instalado = R$ 9.372,00 (preço médio de mercado, estimativa).",
     "retornoSolar": "R$ 9.372,00 ÷ (R$ 312,00 × 12 meses) = 2,5 anos. Usa a economia com energia solar, não a de hábitos."
   },
@@ -429,7 +429,7 @@ Authorization: Bearer <token>
 
 ### 🗺️ Rankings e mapa
 
-- `GET /api/rankings?tipo=bairros` ou `?tipo=escolas`: soma dos pontos de cada bairro ou escola, sem nenhum dado individual. Os pontos acompanham o bairro e a escola **atuais** do estudante. No ranking de escolas, só contam os estudantes com `escola_verificada` (entraram pelo código de turma). Só aparecem bairros e escolas com **pelo menos 1 ponto**; enquanto ninguém pontuar, a lista vem vazia.
+- `GET /api/rankings?tipo=bairros` ou `?tipo=escolas`: soma dos pontos de cada bairro ou escola, sem nenhum dado individual. Os pontos acompanham o bairro e a escola **atuais** do estudante. No ranking de escolas, só contam os estudantes com `escola_verificada` (entraram pelo código de turma). Só aparecem bairros e escolas com **pelo menos 3 estudantes com pontos**, para que a soma não revele os pontos de ninguém; enquanto nenhum chegar a 3, a lista vem vazia. Perfis de teste (`eh_teste`) não contam.
 - No `GET /api/perfil/resumo`, uma escola ou bairro que ainda não pontuou vem com `posicao: null` e `pontos: 0` (fora do ranking). `escola: null` significa que o estudante não informou escola.
 - `GET /api/mapa/pontos` com `?tipo=solar`, `coleta` ou `acao` opcional: pontos com latitude e longitude. A descrição dos pontos de coleta diz o que cada um recebe e o horário.
 
@@ -522,9 +522,10 @@ A `mensagem` está em português e pode ser mostrada ao usuário. Use o `codigo`
 | 405 | `METODO_NAO_PERMITIDO` | A rota existe, mas não aceita esse método (veja o cabeçalho `Allow`) |
 | 409 | `LICAO_BLOQUEADA` | Tentou concluir uma lição antes das anteriores da trilha (a mensagem diz qual falta) |
 | 409 | `LICAO_NAO_CONCLUIDA` | Tentou responder o quiz antes de concluir a lição |
+| 409 | `ESCOLA_INATIVA` | Escolheu uma escola que foi desativada: peça para escolher outra |
 | 429 | `LIMITE_DE_TROCAS` | Já trocou de bairro ou escola 3 vezes nos últimos 30 dias |
 | 429 | `LIMITE_TUTOR` | Já mandou 20 mensagens ao tutor na última hora |
-| 429 | `LIMITE_DE_REQUISICOES` | Muitas simulações seguidas (prévia ou simulação sem login): espere um pouco |
+| 429 | `LIMITE_DE_REQUISICOES` | Muitas simulações seguidas (prévia ou simulação sem login) ou muitas ações seguidas do mesmo perfil (120 a cada 10 minutos): espere um pouco |
 | 500 | `ERRO_INTERNO` | Erro inesperado: tente de novo |
 | 503 | `TUTOR_INDISPONIVEL` | O serviço de IA não respondeu: tente de novo em alguns minutos |
 
@@ -552,14 +553,14 @@ Campos que a API não conhece são recusados com `400`. Por exemplo, o front **n
 ## 🧪 Testes e Verificação
 
 ```bash
-npm test                  # 257 testes Vitest, sem banco e sem APIs externas
+npm test                  # 296 testes Vitest, sem banco e sem APIs externas
 npx tsc --noEmit          # tipos
 npm run lint              # ESLint
 npm run verificar:banco   # checagens no Supabase real
 ```
 
 - Os **testes Vitest** cobrem as funções puras (simulador, Sol de hoje, pontuação, quiz, ordem das lições, limites), as rotas, a camada de dados com um Supabase simulado e a especificação OpenAPI (toda rota existente precisa estar documentada).
-- O **`verificar:banco`** confere no Supabase real o RLS com dois usuários, os grants, o gabarito escondido e as funções SQL. Com `API_URL` definida, testa também as rotas e o fluxo completo (simular → concluir lição → quiz → ranking da escola). Cria usuários anônimos de teste e apaga todos no fim.
+- O **`verificar:banco`** confere no Supabase real o RLS com dois usuários, os grants, o gabarito escondido e as funções SQL. Com `API_URL` definida, testa também as rotas e o fluxo completo (simular → concluir lição → quiz → ranking da escola). Cria usuários anônimos de teste e apaga todos no fim. Como os rankings só mostram quem tem 3 participantes, o script cria participantes de apoio (1 ponto cada) na mesma escola e no mesmo bairro.
 
 ```bash
 API_URL=https://cidade-energia-back-end.vercel.app npm run verificar:banco
@@ -579,6 +580,7 @@ API_URL=https://cidade-energia-back-end.vercel.app npm run verificar:banco
 | `npm run indexar` | Divide as lições em trechos, gera os embeddings no Gemini e regrava `documentos_rag` |
 | `npm run indexar -- --simular` | Só mostra os trechos, sem chamar o Gemini nem gravar no banco |
 | `npm run verificar:banco` | Confere o banco e as permissões no Supabase real (e as rotas, com `API_URL`) |
+| `npm run limpar:anonimos` | Lista os anônimos sem primeiro nome e sem atividade há 30 dias (`--dias=N` muda a janela). Só apaga com `--apagar` |
 | `npx supabase migration new <nome>` | Cria uma migration |
 | `npx supabase db push` | Aplica as migrations no projeto ligado (`--include-seed` para os seeds novos) |
 | `npx supabase db query --linked -f supabase/seeds/conteudo.sql` | Reaplica o conteúdo das trilhas depois de editá-lo |
@@ -591,7 +593,7 @@ API_URL=https://cidade-energia-back-end.vercel.app npm run verificar:banco
 - **Dados mínimos de estudantes**, que podem ser menores de idade: só o primeiro nome, o bairro e a escola. Sem e-mail, telefone ou documento.
 - **RLS em todas as tabelas.** O cliente só lê os próprios dados. Pontos, respostas, progresso, cache e uso do tutor são gravados só pelo servidor, com o `perfil_id` tirado do token.
 - **Pontos sem duplicidade:** a tabela `pontos_eventos` é única por (perfil, origem, referência). O cliente nunca envia pontos.
-- **Rankings** saem de views agregadas, sem dados individuais, e só mostram quem tem pelo menos 1 ponto.
+- **Rankings** saem de views agregadas, sem dados individuais, e só mostram bairros e escolas com pelo menos 3 estudantes com pontos (`minimo_participantes_ranking()`).
 - **Lições na ordem:** concluir uma lição exige as anteriores da trilha, e o quiz exige a lição concluída. Ler continua livre. Assim não dá para juntar pontos pulando a leitura.
 - **Limite nas simulações:** fica no banco (`consumir_limite_publico`), porque cada chamada na Vercel pode rodar numa instância diferente. A chave é um HMAC do IP ou o ID do perfil. Se o banco falhar, a rota segue sem limite e registra o erro.
 - **Estimativas:** todas as constantes do simulador ficam em `src/lib/config.ts`, com a fonte em `FONTES`. A tarifa padrão é a B1 da Equatorial Maranhão sem tributos (R$ 0,8888/kWh), dado público homologado pela ANEEL.

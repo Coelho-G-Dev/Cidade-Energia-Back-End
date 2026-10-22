@@ -53,6 +53,8 @@ export const PONTOS_POR_ORIGEM = {
 export const LIMITE_SIMULACAO_PUBLICA_POR_MINUTO = 600;
 export const LIMITE_PREVIA_POR_PERFIL = 120;
 export const JANELA_LIMITE_PREVIA_POR_PERFIL = "10 minutes";
+export const LIMITE_ACOES_POR_PERFIL = 120;
+export const JANELA_LIMITE_ACOES_POR_PERFIL = "10 minutes";
 export const PONTOS_BAIRRO_UNIDO = 500;
 
 export const CACHE_CONTEUDO_SEGUNDOS = 300;

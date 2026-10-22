@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { JANELA_LIMITE_PREVIA_POR_PERFIL, LIMITE_PREVIA_POR_PERFIL, LIMITE_SIMULACAO_PUBLICA_POR_MINUTO } from "@/lib/config";
-import { chaveDoLimite, consumirLimitePublico, ipDaRequisicao, regraDaSimulacao } from "@/lib/dados/limites";
+import {
+  JANELA_LIMITE_ACOES_POR_PERFIL,
+  JANELA_LIMITE_PREVIA_POR_PERFIL,
+  LIMITE_ACOES_POR_PERFIL,
+  LIMITE_PREVIA_POR_PERFIL,
+  LIMITE_SIMULACAO_PUBLICA_POR_MINUTO,
+} from "@/lib/config";
+import { chaveDoLimite, consumirLimitePublico, ipDaRequisicao, regraDaSimulacao, regraDasAcoes } from "@/lib/dados/limites";
 import { supabaseFalso } from "./apoio/supabase-falso";
 
 const comCabecalhos = (cabecalhos: Record<string, string>) =>
@@ -45,6 +51,26 @@ describe("regraDaSimulacao", () => {
       chave: chaveDoLimite("simulacao", "200.1.2.3", "segredo"),
       limite: LIMITE_SIMULACAO_PUBLICA_POR_MINUTO,
       janela: "1 minute",
+    });
+  });
+});
+
+describe("regraDasAcoes", () => {
+  it("conta por perfil, em todas as rotas que gravam, com a mensagem de ações", () => {
+    expect(regraDasAcoes("abc")).toEqual({
+      chave: "acoes:perfil:abc",
+      limite: LIMITE_ACOES_POR_PERFIL,
+      janela: JANELA_LIMITE_ACOES_POR_PERFIL,
+      mensagem: "Muitas ações seguidas. Espere um pouco e tente de novo.",
+    });
+  });
+
+  it("acima do limite, responde 429 com a mensagem de ações", async () => {
+    const { cliente } = supabaseFalso(() => ({ data: { permitido: false, liberado_em: null } }));
+    await expect(consumirLimitePublico(cliente, regraDasAcoes("abc"))).rejects.toMatchObject({
+      status: 429,
+      codigo: "LIMITE_DE_REQUISICOES",
+      message: "Muitas ações seguidas. Espere um pouco e tente de novo.",
     });
   });
 });
