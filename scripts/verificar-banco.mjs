@@ -603,7 +603,12 @@ async function verificarRotasDia3({ A, B }) {
     JSON.stringify(sol.corpo),
   );
   const sol2 = await chamar("GET", "/api/sol-de-hoje");
-  checar("a 2ª chamada vem do cache", sol2.status === 200 && sol2.corpo.fonte === "cache", JSON.stringify(sol2.corpo));
+  const cacheDaCdn = ["HIT", "STALE"].includes(sol2.cabecalhos.get("x-vercel-cache") ?? "");
+  checar(
+    `a 2ª chamada vem do cache (${cacheDaCdn ? "CDN da Vercel" : `fonte ${sol2.corpo?.fonte}`})`,
+    sol2.status === 200 && (sol2.corpo.fonte === "cache" || cacheDaCdn),
+    JSON.stringify({ ...sol2.corpo, xVercelCache: sol2.cabecalhos.get("x-vercel-cache") }),
+  );
 
   const semLogin = await chamar("POST", "/api/tutor", { body: { mensagem: "O que é kWh?" } });
   checar("POST /api/tutor sem login → 401", semLogin.status === 401 && semLogin.corpo.erro?.codigo === "NAO_AUTENTICADO");

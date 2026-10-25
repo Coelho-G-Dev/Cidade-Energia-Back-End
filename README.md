@@ -8,6 +8,12 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/🏆_Campeão-Hackathon_Equatorial-FFD700?style=for-the-badge" alt="Campeão do Hackathon Equatorial" />
+</p>
+
+> 🏆 **Fomos campeões do Hackathon Equatorial!** O Cidade Energia ficou em 1º lugar no Desafio 9, em 23/10/2026.
+
+<p align="center">
   <a href="https://cidade-energia.vercel.app" target="_blank">
     <img src="https://img.shields.io/badge/App-Cidade_Energia-F5B800?style=for-the-badge&logo=vercel&logoColor=black" alt="App em produção" />
   </a>
@@ -22,12 +28,13 @@
   <img src="https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white" alt="Supabase" />
   <img src="https://img.shields.io/badge/PostgreSQL_+_pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
   <img src="https://img.shields.io/badge/Zod_4-3E67B1?style=flat-square&logo=zod&logoColor=white" alt="Zod" />
-  <img src="https://img.shields.io/badge/Vitest-257_testes-6E9F18?style=flat-square&logo=vitest&logoColor=white" alt="Vitest" />
+  <img src="https://img.shields.io/badge/Vitest-302_testes-6E9F18?style=flat-square&logo=vitest&logoColor=white" alt="Vitest" />
   <img src="https://img.shields.io/badge/Gemini-8E75B2?style=flat-square&logo=googlegemini&logoColor=white" alt="Gemini" />
   <img src="https://img.shields.io/badge/NASA_POWER-0B3D91?style=flat-square&logo=nasa&logoColor=white" alt="NASA POWER" />
   <img src="https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Vercel" />
 </p>
 
+[Conquista](#-campeões-do-hackathon-equatorial) •
 [Visão Geral](#-visão-geral) •
 [Deploy](#-deploy-em-produção) •
 [Destaques](#-destaques-de-engenharia) •
@@ -40,6 +47,22 @@
 ---
 
 </div>
+
+## 🏆 Campeões do Hackathon Equatorial
+
+Em **23/10/2026**, o **Cidade Energia** conquistou o **1º lugar no Hackathon Equatorial**, no Desafio 9. A proposta de transformar a conta de luz na primeira aula de energia dos estudantes de escolas públicas de São Luís venceu a competição.
+
+<p align="center">
+  <img src="docs/Foto_Campe%C3%B5s%20hacktoon.jpeg" alt="Equipe Cidade Energia, campeã do Hackathon Equatorial" width="700" />
+</p>
+
+**Equipe campeã:**
+
+- Gabriel Coelho Sousa
+- Alcides Casemiro
+- Gabriel Rodrigues
+
+---
 
 ## 🎯 Visão Geral
 
@@ -345,7 +368,7 @@ Resposta:
 |---|---|
 | `consumoKwh` | Consumo por mês (kWh) |
 | `gastoMensal` | Quanto a família gasta por mês (R$) |
-| `economiaHabitosMensal` | Quanto dá para economizar por mês **mudando hábitos**, sem investimento (R$). Não tem relação com o retorno |
+| `economiaHabitosMensal` | Quanto dá para economizar por mês **mudando hábitos**, sem investimento (R$). No modo `conta`, 10% do gasto; no modo `aparelhos`, os kWh economizados pelas dicas de cada aparelho × a tarifa. Não tem relação com o retorno |
 | `economiaSolarMensal` | Quanto as **placas solares** economizariam por mês: a energia gerada, até o consumo, × a tarifa (R$) |
 | `kwhGeradoMes` | Energia que as placas gerariam por mês (kWh) |
 | `custoSistemaSolar` | Custo estimado do sistema solar instalado (R$) |
@@ -550,7 +573,7 @@ Campos que a API não conhece são recusados com `400`. Por exemplo, o front **n
 ## 🧪 Testes e Verificação
 
 ```bash
-npm test                  # 297 testes Vitest, sem banco e sem APIs externas
+npm test                  # 302 testes Vitest, sem banco e sem APIs externas
 npx tsc --noEmit          # tipos
 npm run lint              # ESLint
 npm run verificar:banco   # checagens no Supabase real
@@ -605,9 +628,9 @@ API_URL=https://cidade-energia-back-end.vercel.app npm run verificar:banco
 ## 🔮 Roadmap
 
 - [ ] Ativar o **CAPTCHA (Cloudflare Turnstile)** no login anônimo, quando o front enviar o `captchaToken`.
-- [ ] Trocar os **códigos de turma** do seed por códigos aleatórios para as escolas reais.
+- [x] Trocar os **códigos de turma** do seed por códigos aleatórios para as escolas reais.
 - [ ] Incluir a **Ripel Reciclagem** no mapa, quando houver a coordenada exata, e trocar os pontos solares e as ações ilustrativos por locais reais.
-- [ ] Exigir um **mínimo de participantes** por escola no ranking, para não expor a soma de um único aluno.
+- [x] Exigir um **mínimo de participantes** por escola no ranking, para não expor a soma de um único aluno.
 - [ ] **Limpeza automática** dos usuários anônimos inativos.
 - [ ] Mostrar o **acréscimo da bandeira tarifária** no simulador.
 
@@ -615,7 +638,7 @@ API_URL=https://cidade-energia-back-end.vercel.app npm run verificar:banco
 
 ## 📬 Contato
 
-Projeto desenvolvido para o **Hackathon Equatorial (Desafio 9)**.
+Projeto desenvolvido para o **Hackathon Equatorial (Desafio 9)**, onde fomos **campeões** 🏆.
 
 📍 **São Luís, MA · Brasil 🇧🇷**
 
