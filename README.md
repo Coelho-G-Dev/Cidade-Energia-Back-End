@@ -52,10 +52,6 @@
 
 Em **23/10/2026**, o **Cidade Energia** conquistou o **1º lugar no Hackathon Equatorial**, no Desafio 9. A proposta de transformar a conta de luz na primeira aula de energia dos estudantes de escolas públicas de São Luís venceu a competição.
 
-<p align="center">
-  <img src="docs/Foto_Campe%C3%B5s%20hacktoon.jpeg" alt="Equipe Cidade Energia, campeã do Hackathon Equatorial" width="700" />
-</p>
-
 **Equipe campeã:**
 
 - Gabriel Coelho Sousa
