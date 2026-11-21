@@ -3,7 +3,7 @@
 # ⚡ Cidade Energia — Backend
 
 <p align="center">
-  <strong>"Sua conta de luz é a sua primeira aula de energia."</strong><br>
+  <strong>"Sua conta de luz será a sua primeira aula de energia."</strong><br>
   API do app educacional <strong>Cidade Energia</strong>, criado no Hackathon Equatorial (Desafio 9) para estudantes de escolas públicas de São Luís (MA).
 </p>
 
@@ -28,7 +28,7 @@
   <img src="https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white" alt="Supabase" />
   <img src="https://img.shields.io/badge/PostgreSQL_+_pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
   <img src="https://img.shields.io/badge/Zod_4-3E67B1?style=flat-square&logo=zod&logoColor=white" alt="Zod" />
-  <img src="https://img.shields.io/badge/Vitest-302_testes-6E9F18?style=flat-square&logo=vitest&logoColor=white" alt="Vitest" />
+  <img src="https://img.shields.io/badge/Vitest-319_testes-6E9F18?style=flat-square&logo=vitest&logoColor=white" alt="Vitest" />
   <img src="https://img.shields.io/badge/Gemini-8E75B2?style=flat-square&logo=googlegemini&logoColor=white" alt="Gemini" />
   <img src="https://img.shields.io/badge/NASA_POWER-0B3D91?style=flat-square&logo=nasa&logoColor=white" alt="NASA POWER" />
   <img src="https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Vercel" />
@@ -555,7 +555,7 @@ Campos que a API não conhece são recusados com `400`. Por exemplo, o front **n
 - **Escolas reais** (`supabase/seeds/escolas.sql`): a lista entra em JSON entre os marcadores `$lista$[` e `]$lista$`, um objeto por escola: `{ "nome": "...", "bairro": "...", "codigo_inep": "21xxxxxx" }`. O `codigo_inep` (8 dígitos do Censo Escolar) é opcional, mas evita duplicar a escola. Bairros que ainda não existem são criados. Cada escola nova ganha um **código de turma aleatório** de 8 caracteres (sem 0, O, 1 e I), que não muda ao rodar o seed de novo. Com a lista preenchida, as 3 escolas fictícias ficam inativas e perdem o código.
   - Aplicar: `npx supabase db query --linked -f supabase/seeds/escolas.sql`.
   - **Perfis de teste do time:** marque com `npx supabase db query --linked "update perfis set eh_teste = true where id = '<id>'"`. O perfil continua usando o app, mas sai dos rankings e da soma do Bairro unido. O cliente não consegue ligar nem desligar `eh_teste`. O `npm run verificar:banco` marca como teste os usuários que não conseguir apagar no fim.
-  - Códigos para os professores (só com a chave de serviço): `npx supabase db query --linked "select b.nome as bairro, e.nome, e.codigo_turma from escolas e join bairros b on b.id = e.bairro_id where e.ativa order by 1, 2"`.
+  - Códigos de turma para os professores: execute na pasta do back-end `npm run turmas:listar -- --inep 21016631` ou `npm run turmas:listar -- --bairro "Alemanha"` (nome exato do bairro). Informe exatamente um filtro. O script lê a URL e `SUPABASE_SERVICE_ROLE_KEY` do `.env.local` (ou variáveis de ambiente; aceita também `SUPABASE_URL` e `SUPABASE_SECRET_KEY`), consulta apenas escolas ativas com código e imprime escola, bairro e código de turma. Só faz leitura, sem acessar perfis, imprimir chaves ou dados de estudantes. `npm run turmas:listar -- --help` mostra o uso.
 - **Conteúdo** (5 trilhas, 18 lições, 20 perguntas e 2 missões): revisado em 2026-10-17. Os números das lições são **estimativas didáticas** e usam as mesmas constantes do simulador (`src/lib/config.ts`).
 - **Mapa** (14 pontos): os **10 pontos de coleta são locais reais** de São Luís (ecopontos da Prefeitura, a Central de Logística Reversa da Vila Isabel e a UFMA), conferidos em 2026-10-17, com o que cada um recebe e o horário na descrição. Os 2 pontos solares e as 2 ações ainda são ilustrativos e não correspondem a locais reais.
 
@@ -569,7 +569,7 @@ Campos que a API não conhece são recusados com `400`. Por exemplo, o front **n
 ## 🧪 Testes e Verificação
 
 ```bash
-npm test                  # 302 testes Vitest, sem banco e sem APIs externas
+npm test                  # 319 testes Vitest, sem banco e sem APIs externas
 npx tsc --noEmit          # tipos
 npm run lint              # ESLint
 npm run verificar:banco   # checagens no Supabase real
@@ -593,6 +593,7 @@ API_URL=https://cidade-energia-back-end.vercel.app npm run verificar:banco
 | `npx tsc --noEmit` | Checa os tipos |
 | `npm run lint` | Roda o ESLint |
 | `npm run build` | Build de produção |
+| `npm run turmas:listar -- --inep <codigo>` | Lista escola, bairro e código de turma; aceita `--bairro "Nome"` como alternativa, só leitura |
 | `npm run indexar` | Divide as lições em trechos, gera os embeddings no Gemini e regrava `documentos_rag` |
 | `npm run indexar -- --simular` | Só mostra os trechos, sem chamar o Gemini nem gravar no banco |
 | `npm run verificar:banco` | Confere o banco e as permissões no Supabase real (e as rotas, com `API_URL`) |

@@ -44,7 +44,7 @@ const resultadoConta = {
   custoSistemaSolar: 9372,
   retornoSolarAnos: 2.5,
   placas: 6,
-  co2EvitadoKgAno: 191.2,
+  co2EvitadoKgAno: 229,
   pesos: [],
   comoCalculamos: {
     economiaHabitos: "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
@@ -65,7 +65,7 @@ const resultadoAparelhos = {
   custoSistemaSolar: 3124,
   retornoSolarAnos: 3.6,
   placas: 2,
-  co2EvitadoKgAno: 63.7,
+  co2EvitadoKgAno: 76.3,
   pesos: [{ aparelho: "Chuveiro elétrico", percentual: 100 }],
   comoCalculamos: {
     economiaHabitos:
@@ -519,7 +519,7 @@ export const especificacaoOpenApi = {
                 irradiacao: 7.09,
                 kwhPorPlaca: 3.12,
                 horasArCondicionado: 3.1,
-                co2EvitadoKg: 0.12,
+                co2EvitadoKg: 0.144,
                 estimativa: true,
                 fonte: "cache",
               },
@@ -924,7 +924,7 @@ export const especificacaoOpenApi = {
                   {
                     id: UUID_MISSAO,
                     slug: "ar-desligado-antes-de-dormir",
-                    titulo: "Noites frescas",
+                    titulo: "Ar desligado antes de dormir",
                     descricao: "Desligue o ar-condicionado 30 minutos antes de dormir por 3 noites.",
                     trilhaSlug: "ar-condicionado-sem-susto",
                     pontos: 30,

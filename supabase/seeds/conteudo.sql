@@ -101,13 +101,13 @@ Essa água que sobe e desce carrega muita energia. Uma **usina de marés com bar
 1. Na maré alta, a água entra e fica guardada atrás de uma barragem.
 2. Na maré baixa, a água sai passando por **turbinas**, que giram geradores.
 
-Nas décadas de 1970 e 1980 houve estudos para uma usina de marés na **Barragem do Bacanga**, em São Luís, mas a usina não chegou a funcionar.
+Desde a construção da **Barragem do Bacanga**, concluída em 1973, e em estudos da Eletrobras nos anos 1980, cogitou-se instalar ali uma usina de marés, mas **as turbinas nunca chegaram a ser instaladas**: o crescimento de bairros ao redor do reservatório limitou quanto o nível da água podia variar sem causar alagamentos, e outras fontes de energia custavam menos na época. Hoje, pesquisadores da UFMA ainda estudam o local para projetos experimentais.
 
 Hoje a energia das marés ainda é pouco usada no mundo, mas é uma fonte renovável e previsível: sabemos com antecedência a hora de cada maré.$md$),
 
   ('a-energia-do-maranhao', 4, 'Juntando tudo: a energia do Brasil', 'texto', $md$A energia que chega à sua casa vem do **Sistema Interligado Nacional**: uma grande rede de linhas de transmissão que liga usinas de quase todo o país. A energia gerada pelo vento no Maranhão pode abastecer outra região, e vice-versa.
 
-Boa parte da eletricidade do Brasil vem de fontes renováveis, como água (hidrelétricas), vento e sol. Por isso cada kWh gerado aqui solta pouco gás carbônico (CO₂): em 2023, cerca de 38,5 kg de CO₂ por MWh.
+Boa parte da eletricidade do Brasil vem de fontes renováveis, como água (hidrelétricas), vento e sol. Por isso cada kWh gerado aqui solta pouco gás carbônico (CO₂): em 2025, cerca de 46,1 kg de CO₂ por MWh.
 
 Mesmo assim, economizar energia continua importante: menos consumo significa menos usinas e menos linhas para construir, e uma conta mais leve para a sua família.$md$),
 
@@ -140,7 +140,7 @@ Os valores são **estimativas**: a potência real muda de um aparelho para outro
 - desligar o ar **30 minutos antes de dormir** ou usar o **timer** (função "sleep");
 - deixar o ventilador ligado no lugar do ar no fim da noite.
 
-**Quanto economiza?** Um ar de 1.000 W usado **1 hora a menos por dia**:
+**Quanto economiza?** Por exemplo, usar um ar de 1.000 W **1 hora a menos por dia**:
 
 > 1 kW × 1 h × 30 dias = **30 kWh por mês**
 

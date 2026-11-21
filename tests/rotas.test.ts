@@ -52,7 +52,7 @@ describe("POST /api/simulacoes", () => {
       custoSistemaSolar: 9372,
       retornoSolarAnos: 2.5,
       placas: 6,
-      co2EvitadoKgAno: 191.2,
+      co2EvitadoKgAno: 229,
       pesos: [],
       comoCalculamos: {
         economiaHabitos: expect.stringContaining("10% da conta"),

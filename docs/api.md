@@ -230,7 +230,7 @@ Content-Type: application/json
   "custoSistemaSolar": 9372,
   "retornoSolarAnos": 2.5,
   "placas": 6,
-  "co2EvitadoKgAno": 191.2,
+  "co2EvitadoKgAno": 229,
   "pesos": [],
   "comoCalculamos": {
     "economiaHabitos": "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
@@ -267,7 +267,7 @@ Content-Type: application/json
   "custoSistemaSolar": 3124,
   "retornoSolarAnos": 3.6,
   "placas": 2,
-  "co2EvitadoKgAno": 63.7,
+  "co2EvitadoKgAno": 76.3,
   "pesos": [{ "aparelho": "Chuveiro elétrico", "percentual": 100 }],
   "comoCalculamos": {
     "economiaHabitos": "Mudança de hábitos, sem investimento: tomar banhos 10 minutos mais curtos por dia. São 27,5 kWh a menos por mês × R$ 0,8888 por kWh.",
@@ -389,7 +389,7 @@ GET /api/sol-de-hoje
   "irradiacao": 7.09,
   "kwhPorPlaca": 3.12,
   "horasArCondicionado": 3.1,
-  "co2EvitadoKg": 0.12,
+  "co2EvitadoKg": 0.144,
   "estimativa": true,
   "fonte": "cache"
 }
@@ -681,7 +681,7 @@ Authorization: Bearer <token>
   {
     "id": "a7b8c9d0-e1f2-4a3b-8c4d-5e6f708192a3",
     "slug": "ar-desligado-antes-de-dormir",
-    "titulo": "Noites frescas",
+    "titulo": "Ar desligado antes de dormir",
     "descricao": "Desligue o ar-condicionado 30 minutos antes de dormir por 3 noites.",
     "trilhaSlug": "ar-condicionado-sem-susto",
     "pontos": 30,

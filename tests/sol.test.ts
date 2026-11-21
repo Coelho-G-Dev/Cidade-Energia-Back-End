@@ -20,7 +20,7 @@ describe("calcularSolDeHoje", () => {
     expect(calcularSolDeHoje(6.2194, 1000)).toEqual({
       kwhPorPlaca: 2.74,
       horasArCondicionado: 2.7,
-      co2EvitadoKg: 0.105,
+      co2EvitadoKg: 0.126,
     });
   });
 
@@ -84,7 +84,7 @@ describe("GET /api/sol-de-hoje", () => {
       irradiacao: 6.22,
       kwhPorPlaca: 2.74,
       horasArCondicionado: 2.7,
-      co2EvitadoKg: 0.105,
+      co2EvitadoKg: 0.126,
       estimativa: true,
       fonte: "nasa",
     });

@@ -137,22 +137,22 @@ describe("irradiacaoDeHoje", () => {
     expect(banco.linha()).toMatchObject({ buscado_em: AGORA.toISOString(), atualizado_em: haHoras(30) });
   });
 
-  it("depois de uma falha não tenta de novo antes de 6 horas", async () => {
+  it("depois de uma falha não tenta de novo antes de 30 minutos", async () => {
     const banco = bancoComCache(cacheDe("2026-10-08", 6.8, 30));
     await irradiacaoDeHoje({ supabase: banco.cliente, buscar: nasaFora(), agora: AGORA });
 
     const buscar = nasaRespondendo({ "20261009": 6.2 });
-    const r = await irradiacaoDeHoje({ supabase: banco.cliente, buscar, agora: new Date(AGORA.getTime() + HORA) });
+    const r = await irradiacaoDeHoje({ supabase: banco.cliente, buscar, agora: new Date(AGORA.getTime() + 29 * HORA / 60) });
 
     expect(r.fonte).toBe("cache");
     expect(buscar).not.toHaveBeenCalled();
   });
 
-  it("6 horas depois da falha, tenta de novo", async () => {
+  it.each([30, 31])("%i minutos depois da falha, tenta de novo", async (minutos) => {
     const banco = bancoComCache(cacheDe("2026-10-08", 6.8, 30));
     await irradiacaoDeHoje({ supabase: banco.cliente, buscar: nasaFora(), agora: AGORA });
 
-    const depois = new Date(AGORA.getTime() + 6 * HORA);
+    const depois = new Date(AGORA.getTime() + minutos * HORA / 60);
     const r = await irradiacaoDeHoje({
       supabase: banco.cliente,
       buscar: nasaRespondendo({ "20261016": 6.1 }),
@@ -160,6 +160,28 @@ describe("irradiacaoDeHoje", () => {
     });
 
     expect(r).toEqual({ data: "2026-10-16", valor: 6.1, fonte: "nasa", atualizadoEm: depois.toISOString() });
+  });
+
+  it("sem cache, tenta de novo 31 minutos depois da falha e mantém 6 horas após o sucesso", async () => {
+    const banco = bancoComCache(null);
+    await irradiacaoDeHoje({ supabase: banco.cliente, buscar: nasaFora(), agora: AGORA });
+    const depois = new Date(AGORA.getTime() + 31 * HORA / 60);
+    const buscar = nasaRespondendo({ "20261016": 6.1 });
+    const r = await irradiacaoDeHoje({ supabase: banco.cliente, buscar, agora: depois });
+    expect(r.fonte).toBe("nasa");
+    expect(buscar).toHaveBeenCalledOnce();
+
+    await irradiacaoDeHoje({ supabase: banco.cliente, buscar, agora: new Date(depois.getTime() + HORA) });
+    expect(buscar).toHaveBeenCalledOnce();
+  });
+
+  it("reconhece o sucesso com horários equivalentes em formatos diferentes", async () => {
+    const linha = cacheDe("2026-10-09", 6.2, 2);
+    linha.atualizado_em = linha.buscado_em.replace(".000Z", "+00:00");
+    const banco = bancoComCache(linha);
+    const buscar = nasaRespondendo({ "20261016": 6.1 });
+    await irradiacaoDeHoje({ supabase: banco.cliente, buscar, agora: AGORA });
+    expect(buscar).not.toHaveBeenCalled();
   });
 
   it("quando todos os dias vêm com -999, mantém o último dia válido do cache", async () => {

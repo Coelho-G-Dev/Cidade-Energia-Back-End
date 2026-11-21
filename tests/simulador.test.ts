@@ -20,7 +20,7 @@ const P = {
   custoPorKwp: 4000,
   fatorPerdas: 0.8,
   irradiacao: 5.4,
-  fatorEmissao: 0.0385,
+  fatorEmissao: 0.0461,
   percentualEconomiaPadrao: 0.1,
 };
 
@@ -119,7 +119,7 @@ describe("simular — modo conta", () => {
       custoSistemaSolar: 13200,
       retornoSolarAnos: 3.5,
       placas: 6,
-      co2EvitadoKgAno: 197.6,
+      co2EvitadoKgAno: 236.6,
       pesos: [],
       comoCalculamos: {
         economiaHabitos: "Meta de 10% da conta com mudança de hábitos, sem investimento: R$ 312,00 × 10%.",
@@ -228,7 +228,7 @@ describe("simular — modo aparelhos", () => {
     expect(r.custoSistemaSolar).toBe(13200);
     expect(r.economiaSolarMensal).toBe(330.62);
     expect(r.retornoSolarAnos).toBe(3.3);
-    expect(r.co2EvitadoKgAno).toBe(197.6);
+    expect(r.co2EvitadoKgAno).toBe(236.6);
   });
 
   it("recusa lista vazia", () => {

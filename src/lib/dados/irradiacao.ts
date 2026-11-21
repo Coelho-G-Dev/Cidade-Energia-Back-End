@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { HORAS_CACHE_CLIMATOLOGIA, HORAS_CACHE_IRRADIACAO, IRRADIACAO_MEDIA_SAO_LUIS } from "@/lib/config";
+import { HORAS_CACHE_CLIMATOLOGIA, HORAS_CACHE_IRRADIACAO, IRRADIACAO_MEDIA_SAO_LUIS, MINUTOS_RETENTATIVA_NASA } from "@/lib/config";
 import { buscarIrradiacaoDiaria, buscarMediaClimatologica, type Buscar } from "@/lib/nasa-power";
 import { clienteAdmin } from "@/lib/supabase/admin";
 
@@ -71,7 +71,14 @@ async function obter(tipo: Tipo, buscarNaApi: () => Promise<Leitura>, deps: Depe
   try {
     supabase = deps.supabase ?? clienteAdmin();
     linha = await lerCache(supabase, tipo);
-    if (linha && cacheFresco(linha.buscado_em, agora, VALIDADE_HORAS[tipo])) return doCache(linha) ?? RESERVA;
+    if (linha) {
+      // Só o sucesso grava os dois horários juntos. Uma reserva sem sucesso
+      // conserva o dado anterior, mas permite uma nova busca em 30 minutos.
+      const ultimaBuscaTeveSucesso = linha.atualizado_em !== null
+        && Date.parse(linha.atualizado_em) === Date.parse(linha.buscado_em);
+      const validade = ultimaBuscaTeveSucesso ? VALIDADE_HORAS[tipo] : MINUTOS_RETENTATIVA_NASA / 60;
+      if (cacheFresco(linha.buscado_em, agora, validade)) return doCache(linha) ?? RESERVA;
+    }
     if (!(await reservarBusca(supabase, tipo, linha, agora))) return doCache(linha) ?? RESERVA;
   } catch (e) {
     registrarFalha(tipo, e);
