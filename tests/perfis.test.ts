@@ -51,6 +51,13 @@ describe("perfil com a situação das trocas", () => {
 });
 
 describe("escola verificada pelo código de turma", () => {
+  it("recusa código do professor como código de estudante antes de salvar o perfil", async () => {
+    const { cliente, operacoes } = supabaseFalso(() => ({ data: null }));
+    await expect(atualizarPerfil(cliente, PERFIL, {
+      primeiro_nome: "Ana", bairro_id: BAIRRO, codigo_turma: "ABCDEFGHJKLM",
+    })).rejects.toMatchObject({ status: 404, codigo: "TURMA_NAO_ENCONTRADA" });
+    expect(operacoes.map((o) => o.tabela)).toEqual(["rpc:resolver_codigo_turma"]);
+  });
   function bancoTurma(confirmada: boolean, linha: Record<string, unknown>) {
     return supabaseFalso((op) => {
       if (op.tabela === "situacao_trocas") return { data: { limite: 3, trocas_restantes: 3, proxima_troca_em: null } };

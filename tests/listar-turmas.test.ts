@@ -17,7 +17,7 @@ beforeEach(async () => {
   diretorio = await mkdtemp(join(tmpdir(), "cidade-energia-turmas-"));
   pedidos = [];
   status = 200;
-  resposta = [{ nome: "Escola de exemplo", codigo_turma: "SOL2026", bairros: { nome: "Alemanha" }, primeiro_nome: "DADO-NAO-PUBLICAVEL" }];
+  resposta = [{ nome: "Escola de exemplo", codigo_turma: "SOL2026", codigo_professor: "ABCDEFGHJKLM", bairros: { nome: "Alemanha" }, primeiro_nome: "DADO-NAO-PUBLICAVEL" }];
   servidor = createServer((req, res) => {
     pedidos.push({ metodo: req.method, url: new URL(req.url!, "http://localhost"), chave: req.headers.apikey as string });
     res.writeHead(status, { "content-type": "application/json" });
@@ -51,7 +51,7 @@ describe("turmas:listar (somente leitura)", () => {
   it("lê .env.local, filtra pelo INEP e imprime só escola, bairro e código", async () => {
     const r = await rodar("--inep", "21016631");
     expect(r.codigo).toBe(0);
-    expect(r.stdout).toContain("Escola de exemplo\tAlemanha\tSOL2026");
+    expect(r.stdout).toContain("Escola de exemplo\tAlemanha\tSOL2026\tABCDEFGHJKLM");
     expect(r.stdout + r.stderr).not.toContain(CHAVE_FICTICIA);
     expect(r.stdout + r.stderr).not.toContain("DADO-NAO-PUBLICAVEL");
     expect(pedidos).toHaveLength(1);
@@ -59,7 +59,7 @@ describe("turmas:listar (somente leitura)", () => {
     expect(pedido.metodo).toBe("GET");
     expect(pedido.chave).toBe(CHAVE_FICTICIA);
     expect(pedido.url.pathname).toBe("/rest/v1/escolas");
-    expect(pedido.url.searchParams.get("select")).toBe("nome,codigo_turma,bairros!inner(nome)");
+    expect(pedido.url.searchParams.get("select")).toBe("nome,codigo_turma,codigo_professor,bairros!inner(nome)");
     expect(pedido.url.searchParams.get("codigo_inep")).toBe("eq.21016631");
     expect(pedido.url.searchParams.get("ativa")).toBe("eq.true");
     expect(pedido.url.searchParams.get("codigo_turma")).toBe("not.is.null");
@@ -71,6 +71,19 @@ describe("turmas:listar (somente leitura)", () => {
     const pedido = pedidos[0]!;
     expect(pedido.url.searchParams.get("bairros.nome")).toBe("eq.São Francisco");
     expect(pedido.url.searchParams.has("codigo_inep")).toBe(false);
+  });
+
+  it("troca somente o código do professor pelo INEP e relê a escola", async () => {
+    const r = await rodar("--inep", "21016631", "--trocar-codigo-professor");
+    expect(r.codigo).toBe(0);
+    expect(pedidos.map((p) => [p.metodo, p.url.pathname])).toEqual([
+      ["POST", "/rest/v1/rpc/trocar_codigo_professor"], ["GET", "/rest/v1/escolas"],
+    ]);
+  });
+
+  it("não permite trocar códigos de um bairro inteiro", async () => {
+    expect((await rodar("--bairro", "Alemanha", "--trocar-codigo-professor")).codigo).toBe(1);
+    expect(pedidos).toHaveLength(0);
   });
 
   it.each([[], ["--inep", "123"], ["--bairro", " "], ["--inep", "21016631", "--bairro", "Alemanha"], ["--apagar"]])("rejeita filtro inválido antes de consultar: %j", async (...args) => {

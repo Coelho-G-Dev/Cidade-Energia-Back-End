@@ -3,6 +3,7 @@ import type { ComoCalculamos, EntradaSimulacao, ResultadoSimulacao } from "@/lib
 import { buscarAparelhos } from "@/lib/dados/catalogos";
 import { erroDoBanco, naoEncontrado } from "@/lib/http/erros";
 import type { CriarSimulacao } from "@/lib/validacao/simulacao";
+import { TARIFA_PADRAO_R_KWH } from "@/lib/config";
 
 export async function montarEntrada(supabase: SupabaseClient, body: CriarSimulacao): Promise<EntradaSimulacao> {
   if (body.modo === "conta") return body;
@@ -39,7 +40,8 @@ export async function salvarSimulacao(
     p_modo: body.modo,
     p_consumo_kwh: resultado.consumoKwh,
     p_valor_conta: body.modo === "conta" ? (body.valorConta ?? null) : null,
-    p_resultado: resultado,
+    p_resultado: { ...resultado, tarifaRkwh: body.modo === "conta" && body.valorConta !== undefined
+      ? body.valorConta / body.consumoKwh : TARIFA_PADRAO_R_KWH },
     p_itens: itens,
   });
   if (error) throw erroDoBanco(error);
@@ -73,6 +75,7 @@ function comoCalculamosOuNull(v: unknown): ComoCalculamos | null {
 export function normalizarResultado(bruto: unknown): ResultadoSalvo {
   const r = (bruto && typeof bruto === "object" ? bruto : {}) as Record<string, unknown>;
   const { economiaMensal, retornoAnos, ...resto } = r;
+  delete resto.tarifaRkwh;
   return {
     ...(resto as ResultadoSimulacao),
     economiaHabitosMensal: numeroOuNull(r.economiaHabitosMensal) ?? numeroOuNull(economiaMensal),

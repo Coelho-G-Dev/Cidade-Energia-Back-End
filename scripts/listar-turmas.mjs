@@ -3,12 +3,12 @@ import { parseArgs, parseEnv } from "node:util";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-const USO = 'Uso: npm run turmas:listar -- --inep 21016631 ou --bairro "Alemanha"';
+const USO = 'Uso: npm run escolas:codigos -- --inep 21016631 [--trocar-codigo-professor] ou --bairro "Alemanha"';
 
 async function executar() {
   let valores;
   try {
-    valores = parseArgs({ options: { inep: { type: "string" }, bairro: { type: "string" }, help: { type: "boolean" } } }).values;
+    valores = parseArgs({ options: { inep: { type: "string" }, bairro: { type: "string" }, help: { type: "boolean" }, "trocar-codigo-professor": { type: "boolean" } } }).values;
   } catch {
     throw new Error(USO);
   }
@@ -16,11 +16,14 @@ async function executar() {
     console.log(USO);
     return;
   }
+  const trocar = valores["trocar-codigo-professor"] === true;
+  delete valores["trocar-codigo-professor"];
   const filtro = z.union([
     z.object({ inep: z.string().regex(/^\d{8}$/) }).strict(),
     z.object({ bairro: z.string().trim().min(1).max(200) }).strict(),
   ]).safeParse(valores);
   if (!filtro.success) throw new Error(USO);
+  if (trocar && !("inep" in filtro.data)) throw new Error(USO);
 
   // Só lê a configuração local; nenhum segredo é incluído na saída ou em erros.
   const local = existsSync(".env.local") ? parseEnv(readFileSync(".env.local", "utf8")) : {};
@@ -30,11 +33,15 @@ async function executar() {
   if (!url || !chave) throw new Error("Configure a URL do Supabase e a chave de serviço no .env.local.");
 
   const admin = createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } });
+  if (trocar) {
+    const { error } = await admin.rpc("trocar_codigo_professor", { p_inep: filtro.data.inep });
+    if (error) throw new Error("Não foi possível consultar ou trocar o código do professor. Confira a configuração e tente novamente.");
+  }
   const escolas = [];
   const tamanhoPagina = 1000;
   for (let inicio = 0; ; inicio += tamanhoPagina) {
     let consulta = admin.from("escolas")
-      .select("nome,codigo_turma,bairros!inner(nome)")
+      .select("nome,codigo_turma,codigo_professor,bairros!inner(nome)")
       .eq("ativa", true)
       .not("codigo_turma", "is", null)
       .order("nome").order("id")
@@ -51,11 +58,11 @@ async function executar() {
     console.log("Nenhuma escola ativa com código de turma encontrada para esse filtro.");
     return;
   }
-  console.log("Escola\tBairro\tCódigo de turma");
+  console.log("Escola\tBairro\tCódigo de turma\tCódigo do professor");
   // Escapa quebras de linha e tabs vindos do banco para manter uma escola por linha.
   const celula = (valor) => String(valor).replace(/[\r\n\t]/g, " ");
   for (const escola of escolas) {
-    console.log([escola.nome, escola.bairros.nome, escola.codigo_turma].map(celula).join("\t"));
+    console.log([escola.nome, escola.bairros.nome, escola.codigo_turma, escola.codigo_professor].map(celula).join("\t"));
   }
 }
 

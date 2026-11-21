@@ -59,7 +59,8 @@ describe("proxy (CORS das rotas /api)", () => {
     process.env.CORS_ORIGENS = "http://localhost:5173,https://front.vercel.app";
     const r = proxy(req("GET", "https://front.vercel.app"));
     expect(r.headers.get("access-control-allow-origin")).toBe("https://front.vercel.app");
-    expect(r.headers.get("access-control-allow-headers")).toBe("Authorization,Content-Type");
+    expect(r.headers.get("access-control-allow-headers")).toBe("Authorization,Content-Type,X-Codigo-Professor,X-Chave-Impacto");
+    expect(r.headers.get("access-control-expose-headers")).toBe("Content-Disposition");
     expect(r.headers.get("vary")).toBe("Origin, Authorization");
   });
 

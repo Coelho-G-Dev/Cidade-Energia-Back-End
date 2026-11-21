@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { impactoSchema, painelProfessorSchema } from "@/lib/validacao/painel";
+
 const json = <E extends object = object>(schema: object, extras?: E) => ({
   "application/json": { schema, ...(extras as E) },
 });
@@ -110,6 +113,58 @@ export const especificacaoOpenApi = {
     { name: "Rankings e mapa", description: "Rankings agregados (sem dados individuais) e pontos no mapa." },
   ],
   paths: {
+    "/api/impacto/exportar": {
+      get: {
+        tags: ["Painéis"], summary: "Exporta os totais de impacto em CSV (D-006)",
+        description: "Mesma chave, filtro e agregados de GET /api/impacto. UTF-8 com BOM, separador ponto e vírgula, vírgula decimal. Formato longo: indicador;valor;unidade;periodo_de;periodo_ate;observacao. Valores ocultos têm célula vazia e observação menos de 3 estudantes; para percentual de acertos, menos de 5 respondentes (D-012). Linhas de potencial incluem como calculamos. Cache-Control: private, no-store. Células neutralizadas contra fórmulas.",
+        security: [{ ChaveImpacto: [] }],
+        parameters: [
+          { name: "de", in: "query", schema: { type: "string", format: "date" }, description: "Dia inicial incluído em São Luís; padrão ate menos 365 dias." },
+          { name: "ate", in: "query", schema: { type: "string", format: "date" }, description: "Dia final incluído em São Luís; padrão hoje. Até 366 dias incluídos." },
+          { name: "formato", in: "query", schema: { type: "string", enum: ["csv"], default: "csv" } },
+        ],
+        responses: {
+          "200": {
+            description: "Arquivo CSV para Excel pt-BR",
+            headers: { "Content-Disposition": { schema: { type: "string" }, description: 'attachment; filename="cidade-energia-impacto-AAAA-MM-DD.csv" (data da exportação em São Luís)' } },
+            content: { "text/csv": { schema: { type: "string" } } },
+          },
+          "400": respostaErro("Filtro ou formato inválido", "ENTRADA_INVALIDA", "Dados inválidos."),
+          "401": respostaErro("Chave inválida", "NAO_AUTENTICADO", "Chave de impacto inválida."),
+          "503": respostaErro("Variável não configurada", "IMPACTO_DESLIGADO", "O painel de impacto está desligado."),
+        },
+      },
+    },
+    "/api/impacto": {
+      get: {
+        tags: ["Painéis"], summary: "Totais agregados do piloto (D-005/D-011)",
+        description: "Contagens com mínimo de 3 participantes; percentualAcertos é null com menos de 5 estudantes distintos respondendo (D-012). O período continua sem defasagem diária. Estimativa de potencial de hábitos, sem economia das missões. Cache-Control: private, no-store.",
+        security: [{ ChaveImpacto: [] }],
+        parameters: [
+          { name: "de", in: "query", schema: { type: "string", format: "date" }, description: "Dia inicial incluído em São Luís; padrão: 365 dias antes de ate." },
+          { name: "ate", in: "query", schema: { type: "string", format: "date" }, description: "Dia final incluído em São Luís; padrão: hoje. Até 366 dias incluídos." },
+        ],
+        responses: {
+          "200": { description: "Totais do piloto, com null para recortes pequenos", content: json(z.toJSONSchema(impactoSchema)) },
+          "400": respostaErro("Período inválido", "ENTRADA_INVALIDA", "Dados inválidos."),
+          "401": respostaErro("Chave inválida", "NAO_AUTENTICADO", "Chave de impacto inválida."),
+          "503": respostaErro("Variável não configurada", "IMPACTO_DESLIGADO", "O painel de impacto está desligado."),
+        },
+      },
+    },
+    "/api/professor/escola": {
+      get: {
+        tags: ["Painéis"], summary: "Agregados da escola inteira (D-004)",
+        description: "D-012: dados até o fim de ontem no fuso de São Luís, inclusive entrada verificada na escola; dadosAte (AAAA-MM-DD), após atualizadoEm, informa o último dia incluído. atualizadoEm é a meia-noite do fechamento em ISO UTC. Só estudantes verificados, com primeiro nome e fora de testes. Contagens exigem 3 participantes; percentuais, 5 respondentes distintos. perguntasMaisErradas só inclui perguntas com 5+ respondentes. Escola com menos de 3: oculto=true e blocos nulos. Cache-Control: private, no-store. Limite por endereço: 30/minuto.",
+        security: [{ CodigoProfessor: [] }],
+        responses: {
+          "200": { description: "Agregados da escola", content: json(z.toJSONSchema(painelProfessorSchema)) },
+          "400": respostaErro("Consulta inválida", "ENTRADA_INVALIDA", "Dados inválidos."),
+          "404": respostaErro("Código inválido ou escola inativa", "ESCOLA_NAO_ENCONTRADA", "Escola não encontrada."),
+          "429": respostaErro("Muitas tentativas", "LIMITE_DE_REQUISICOES", "Espere um pouco e tente de novo."),
+        },
+      },
+    },
     "/api/bairros": {
       get: {
         tags: ["Catálogos"],
@@ -1107,6 +1162,8 @@ export const especificacaoOpenApi = {
   },
   components: {
     securitySchemes: {
+      ChaveImpacto: { type: "apiKey", in: "header", name: "X-Chave-Impacto", description: "Segredo IMPACTO_CHAVE exclusivo do servidor; nunca colocar na URL." },
+      CodigoProfessor: { type: "apiKey", in: "header", name: "X-Codigo-Professor", description: "Código de 12 caracteres exclusivo do professor; nunca colocar na URL." },
       bearerAuth: {
         type: "http",
         scheme: "bearer",

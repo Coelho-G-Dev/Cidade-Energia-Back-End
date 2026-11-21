@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "escolas:codigos": "node scripts/listar-turmas.mjs",
     "turmas:listar": "node scripts/listar-turmas.mjs",
     "verificar:banco": "node scripts/verificar-banco.mjs",
     "indexar": "tsx --conditions=react-server scripts/indexar.ts",

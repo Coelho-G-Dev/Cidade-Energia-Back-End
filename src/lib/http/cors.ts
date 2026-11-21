@@ -2,7 +2,8 @@ export const ORIGENS_PADRAO: readonly string[] = ["http://localhost:5173"];
 
 export const CABECALHOS_CORS = {
   "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization,Content-Type",
+  "Access-Control-Allow-Headers": "Authorization,Content-Type,X-Codigo-Professor,X-Chave-Impacto",
+  "Access-Control-Expose-Headers": "Content-Disposition",
   "Access-Control-Max-Age": "86400",
   Vary: "Origin, Authorization",
 } as const;

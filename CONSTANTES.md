@@ -92,10 +92,10 @@ ENCE/PBE. Reduzir as 24 horas no formulário altera essa aproximação e não re
 automaticamente uma economia real da geladeira. Nenhuma mudança de catálogo ou
 interface foi feita nesta tarefa.
 
-**Fase 2 (D-005, ainda proposta):** `KWH_POR_NOITE_MISSAO_AR` não existe no config
-atual. O valor proposto de 0,5 kWh deriva de 1.000 W × 0,5 h ÷ 1.000 e herda a falta
-de fonte específica do ar-condicionado. A T-009 não resolveu essa pendência; este
-registro não autoriza implementação ou uso do número no pitch.
+**Fase 2 (D-011, 2026-11-20):** a economia das missões em kWh e R$ foi retirada
+do D-005. `KWH_POR_NOITE_MISSAO_AR` não será criada por falta de fonte pública
+para os 1.000 W do ar-condicionado. Missões aparecem somente como contagens de
+registros e conclusões, sem estimativa de economia.
 
 ## Parâmetros técnicos e regras internas
 
@@ -106,6 +106,7 @@ as unidades e usos descrevem a implementação. Data abaixo: leitura do código 
 
 | Nome | Valor no código | Unidade | Onde aparece no app | Fonte | Consulta |
 | --- | --- | --- | --- | --- | --- |
+| `minimo_respondentes_percentual()` (SQL) | `5` | estudantes distintos respondentes | Percentual de acertos geral e por pergunta nos painéis e CSV; contagens continuam com mínimo de 3 | Regra interna de privacidade aprovada no D-012; sem fonte externa | 2026-11-21 |
 | `DIAS_BUSCA_IRRADIACAO` | `10` | dias | Janela de busca do último dia válido na NASA | Configuração técnica do app | 2026-11-17 |
 | `HORAS_CACHE_IRRADIACAO` | `6` | h | Validade do cache diário após sucesso | Configuração técnica do app | 2026-11-17 |
 | `MINUTOS_RETENTATIVA_NASA` | `30` | min | Nova tentativa após reserva sem sucesso (T-003) | Configuração técnica do app | 2026-11-17 |

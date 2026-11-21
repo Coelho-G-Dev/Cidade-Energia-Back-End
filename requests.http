@@ -186,3 +186,15 @@ GET {{baseUrl}}/api/nao-existe
 ### Método não suportado: 405 METODO_NAO_PERMITIDO
 DELETE {{baseUrl}}/api/perfil
 Authorization: Bearer {{token}}
+
+### Painel do professor (defina codigoProfessor apenas no ambiente privado do cliente HTTP)
+GET {{baseUrl}}/api/professor/escola
+X-Codigo-Professor: {{codigoProfessor}}
+
+### Impacto (defina chaveImpacto apenas no ambiente privado do cliente HTTP)
+GET {{baseUrl}}/api/impacto?de=2026-11-20&ate=2026-11-20
+X-Chave-Impacto: {{chaveImpacto}}
+
+### Exportação de impacto — somente CSV
+GET {{baseUrl}}/api/impacto/exportar?de=2026-11-20&ate=2026-11-20&formato=csv
+X-Chave-Impacto: {{chaveImpacto}}

@@ -25,3 +25,7 @@ export function envServidor() {
 export function envGemini() {
   return esquemaGemini.parse(process.env);
 }
+
+export function envImpacto() {
+  return z.object({ IMPACTO_CHAVE: z.string().optional() }).parse(process.env);
+}
