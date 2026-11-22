@@ -198,3 +198,21 @@ X-Chave-Impacto: {{chaveImpacto}}
 ### Exportação de impacto — somente CSV
 GET {{baseUrl}}/api/impacto/exportar?de=2026-11-20&ate=2026-11-20&formato=csv
 X-Chave-Impacto: {{chaveImpacto}}
+
+### Diagnóstico sem gabarito
+GET {{baseUrl}}/api/trilhas/energia-solar-em-sao-luis/diagnostico?momento=antes
+Authorization: Bearer {{token}}
+
+### Diagnóstico — substitua os quatro ids por perguntas do GET
+POST {{baseUrl}}/api/trilhas/energia-solar-em-sao-luis/diagnostico
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"momento":"antes","respostas":[{"perguntaId":"00000000-0000-4000-8000-000000000001","opcao":0},{"perguntaId":"00000000-0000-4000-8000-000000000002","opcao":0},{"perguntaId":"00000000-0000-4000-8000-000000000003","opcao":0},{"perguntaId":"00000000-0000-4000-8000-000000000004","opcao":0}]}
+
+### Ajudou? Use respostaId da resposta do tutor
+POST {{baseUrl}}/api/tutor/avaliar
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"respostaId":"123","util":false,"motivo":"confusa"}

@@ -30,7 +30,8 @@ schema_paths = []
 
 [db.seed]
 enabled = true
-sql_paths = ["./seed.sql", "./seeds/*.sql"]
+# Lista explícita: fixtures de diagnóstico não entram em uma aplicação de seeds.
+sql_paths = ["./seed.sql", "./seeds/conteudo.sql", "./seeds/escolas.sql"]
 
 [db.network_restrictions]
 enabled = false

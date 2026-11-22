@@ -385,3 +385,296 @@ on conflict (nome) do update set
 
 comment on table public.trilhas is 'Conteúdo didático revisado em 2026-10-17. Os números são estimativas; as fontes das constantes estão em src/lib/config.ts.';
 comment on table public.pontos_mapa is 'Pontos de coleta reais de São Luís, conferidos em 2026-10-17. Os pontos solares e as ações ainda são ilustrativos e não correspondem a locais ou eventos reais.';
+
+
+-- Diagnóstico T-031: conteúdo aprovado em 2026-11-21
+-- Cópia literal de docs/qa/fase3-perguntas-diagnostico.md; opções sem o marcador editorial (certa).
+insert into public.perguntas_diagnostico (trilha_id,ordem,enunciado,opcoes,indice_correto,explicacao,fonte)
+select t.id,d.ordem,d.enunciado,d.opcoes,d.indice_correto,d.explicacao,d.fonte
+from jsonb_to_recordset($diagnostico_aprovado$
+[
+  {
+    "slug": "energia-solar-em-sao-luis",
+    "ordem": 1,
+    "enunciado": "O que acontece com a energia do sol que chega em São Luís durante o período chuvoso, mais ou menos de janeiro a junho?",
+    "opcoes": [
+      "A geração cai quase a zero até o fim do período de chuvas",
+      "As nuvens diminuem um pouco essa energia, mas ela continua alta",
+      "Os raios passam a gerar o dobro por causa do brilho da água",
+      "Os dias ficam muito mais curtos e com poucas horas de claridade"
+    ],
+    "indice_correto": 1,
+    "explicacao": "Mesmo com mais nuvens entre janeiro e junho, São Luís fica perto do Equador e continua recebendo bastante sol. Por isso a energia cai um pouco, sem deixar de ser alta.",
+    "fonte": "Trilha `energia-solar-em-sao-luis`, Lição 1 (*O sol de São Luís*) — *\"No período chuvoso, mais ou menos de janeiro a junho, as nuvens diminuem um pouco essa energia, mas ela continua alta.\"*"
+  },
+  {
+    "slug": "energia-solar-em-sao-luis",
+    "ordem": 2,
+    "enunciado": "Em uma casa com placas solares ligadas à rede elétrica, o que acontece com a energia gerada que sobra durante o dia?",
+    "opcoes": [
+      "Fica armazenada dentro do inversor para uso durante a noite",
+      "Se perde nos cabos do telhado em forma de calor desperdiçado",
+      "Segue para a rede da rua sem gerar benefício na conta da casa",
+      "Vai para a rede da distribuidora e vira créditos na conta"
+    ],
+    "indice_correto": 3,
+    "explicacao": "Nos sistemas ligados à rede, a energia excedente segue para a distribuidora e gera créditos. Esses créditos ajudam a abater parte da conta de luz da casa.",
+    "fonte": "Trilha `energia-solar-em-sao-luis`, Lição 2 (*Como a placa solar funciona*) — *\"Nos sistemas ligados à rede, a energia que sobra durante o dia vai para a rede da distribuidora e vira **créditos** para abater na conta.\"*"
+  },
+  {
+    "slug": "energia-solar-em-sao-luis",
+    "ordem": 3,
+    "enunciado": "Comparando a geração humana com aparelhos da casa, quantas pessoas pedalando ao mesmo tempo seriam necessárias para manter um chuveiro elétrico de 5.500 W funcionando?",
+    "opcoes": [
+      "Dezenas de pessoas pedalando ao mesmo tempo",
+      "Cerca de oito pessoas pedalando sem parar",
+      "Duas ou três pessoas em ritmo moderado",
+      "Apenas uma pessoa pedalando com força"
+    ],
+    "indice_correto": 0,
+    "explicacao": "Uma pessoa pedalando com esforço moderado gera entre 50 e 150 W por alguns minutos. Para chegar perto de 5.500 W de um chuveiro, seriam dezenas de pessoas pedalando juntas.",
+    "fonte": "Trilha `energia-solar-em-sao-luis`, Lição 3 (*Pedale e veja*) — *\"Uma pessoa pedalando com esforço moderado gera algo entre 50 e 150 W por alguns minutos. Agora compare: um chuveiro elétrico usa cerca de **5.500 W**. Seriam dezenas de pessoas pedalando ao mesmo tempo só para um banho!\"*"
+  },
+  {
+    "slug": "energia-solar-em-sao-luis",
+    "ordem": 4,
+    "enunciado": "Ao estimar quantas placas solares uma casa precisa, por que a lição arredonda para cima o resultado da divisão do consumo pela geração de uma placa?",
+    "opcoes": [
+      "Para compensar o consumo que as placas têm durante a noite",
+      "Porque os inversores só funcionam com números pares de placas",
+      "Porque não existe meia placa e precisa atender ao consumo",
+      "Para garantir que todas as placas trabalhem com metade da força"
+    ],
+    "indice_correto": 2,
+    "explicacao": "Como não dá para instalar uma fração de placa no telhado, o resultado da divisão é arredondado para o próximo número inteiro. Assim a estimativa cobre todo o consumo considerado.",
+    "fonte": "Trilha `energia-solar-em-sao-luis`, Lição 4 (*Quantas placas para a minha casa?*) — *\"Se a sua casa consome **150 kWh por mês**, divida: 150 ÷ 69 ≈ 2,2. Como não existe meia placa, arredondamos para cima: **3 placas**.\"*"
+  },
+  {
+    "slug": "a-energia-do-maranhao",
+    "ordem": 1,
+    "enunciado": "Qual é a diferença entre usar placas fotovoltaicas e usar aquecedores solares?",
+    "opcoes": [
+      "Placas fotovoltaicas geram eletricidade; aquecedores esquentam água",
+      "Placas fotovoltaicas esquentam água; aquecedores geram eletricidade",
+      "Os dois equipamentos transformam a luz solar apenas em calor",
+      "Aquecedores solares produzem créditos de luz na rede elétrica"
+    ],
+    "indice_correto": 0,
+    "explicacao": "A energia do sol pode ser aproveitada de duas formas diferentes. A placa fotovoltaica gera eletricidade a partir da luz, enquanto o aquecedor solar usa o calor para aquecer água.",
+    "fonte": "Trilha `a-energia-do-maranhao`, Lição 1 (*Sol: a energia que chega todo dia*) — *\"A energia solar pode ser aproveitada de dois jeitos: **placas fotovoltaicas**, que transformam luz em eletricidade; **aquecedores solares**, que usam o calor para esquentar água.\"*"
+  },
+  {
+    "slug": "a-energia-do-maranhao",
+    "ordem": 2,
+    "enunciado": "Em que época do ano os ventos costumam ser mais fortes no Nordeste, ajudando a completar a energia das hidrelétricas?",
+    "opcoes": [
+      "No primeiro semestre, junto com os meses mais chuvosos",
+      "O ano inteiro com a mesma força, sem variação por estação",
+      "No segundo semestre, justamente na época em que chove menos",
+      "Apenas durante a madrugada, quando o mar está mais agitado"
+    ],
+    "indice_correto": 2,
+    "explicacao": "No segundo semestre chove menos no Nordeste, mas os ventos ficam mais fortes. Assim os parques eólicos ajudam a complementar outras fontes, como as hidrelétricas.",
+    "fonte": "Trilha `a-energia-do-maranhao`, Lição 2 (*Vento: os parques eólicos do litoral*) — *\"No Nordeste, os ventos costumam ser mais fortes no segundo semestre, justamente quando chove menos. Por isso o vento ajuda a completar outras fontes, como as hidrelétricas.\"*"
+  },
+  {
+    "slug": "a-energia-do-maranhao",
+    "ordem": 3,
+    "enunciado": "Por que a usina de marés cogitada para a Barragem do Bacanga, em São Luís, nunca chegou a ter suas turbinas instaladas?",
+    "opcoes": [
+      "Diferença pequena entre a maré alta e a maré baixa no local",
+      "Falta de tecnologia para construir barragens em água salgada",
+      "Proibição de usar turbinas próximas a áreas de manguezal",
+      "Risco de alagar bairros ao redor e menor custo de outras fontes"
+    ],
+    "indice_correto": 3,
+    "explicacao": "A ocupação urbana em volta do reservatório impediu grandes variações do nível da água sem causar alagamentos. Além disso, na época dos estudos, outras fontes de energia eram mais baratas.",
+    "fonte": "Trilha `a-energia-do-maranhao`, Lição 3 (*Marés: a força do mar de São Luís*) — *\"...**as turbinas nunca chegaram a ser instaladas**: o crescimento de bairros ao redor do reservatório limitou quanto o nível da água podia variar sem causar alagamentos, e outras fontes de energia custavam menos na época.\"*"
+  },
+  {
+    "slug": "a-energia-do-maranhao",
+    "ordem": 4,
+    "enunciado": "Por que cada kWh de eletricidade gerado no Brasil solta relativamente pouco gás carbônico (cerca de 46,1 kg de CO₂ por MWh em 2025)?",
+    "opcoes": [
+      "Porque quase toda a energia do país vem de usinas nucleares",
+      "Porque boa parte vem de fontes renováveis, como água, vento e sol",
+      "Porque os filtros das linhas de transmissão retêm todo o CO₂",
+      "Porque as usinas termelétricas no Brasil não liberam gases"
+    ],
+    "indice_correto": 1,
+    "explicacao": "Hidrelétricas, parques eólicos e usinas solares compõem grande parte do sistema elétrico brasileiro. Como são fontes renováveis, a emissão média de CO₂ por energia gerada é baixa.",
+    "fonte": "Trilha `a-energia-do-maranhao`, Lição 4 (*Juntando tudo: a energia do Brasil*) e `CONSTANTES.md` (`FATOR_EMISSAO_KG_CO2_KWH = 0.0461`, D-010) — *\"Boa parte da eletricidade do Brasil vem de fontes renováveis, como água (hidrelétricas), vento e sol. Por isso cada kWh gerado aqui solta pouco gás carbônico (CO₂): em 2025, cerca de 46,1 kg de CO₂ por MWh.\"*"
+  },
+  {
+    "slug": "ar-condicionado-sem-susto",
+    "ordem": 1,
+    "enunciado": "De acordo com o cálculo apresentado na trilha, de quais dois fatores depende principalmente o consumo mensal em kWh de um aparelho?",
+    "opcoes": [
+      "Apenas da potência em watts escrita na etiqueta",
+      "Do tamanho do cômodo e da voltagem da tomada",
+      "Da potência do aparelho e do preço da tarifa",
+      "Da potência em watts e do tempo diário de uso"
+    ],
+    "indice_correto": 3,
+    "explicacao": "Para estimar o consumo mensal em kWh, multiplica-se a potência pelo tempo de uso por dia e por 30 dias, dividindo por 1.000. Assim, potência e horas de uso caminham juntas no resultado.",
+    "fonte": "Trilha `ar-condicionado-sem-susto`, Lição 1 (*Por que o ar pesa na conta*) — *\"O consumo de um aparelho depende de **potência** e **tempo de uso**: consumo (kWh/mês) = potência (W) × horas por dia × 30 ÷ 1000\"*."
+  },
+  {
+    "slug": "ar-condicionado-sem-susto",
+    "ordem": 2,
+    "enunciado": "Ao ajustar o controle do ar-condicionado para a temperatura mínima (como 16 °C) em vez de perto de 23 °C, o que acontece com o consumo de energia?",
+    "opcoes": [
+      "Aumenta, pois cada grau a menos exige mais do aparelho",
+      "Fica igual, porque o aparelho tem potência fixa na placa",
+      "Diminui, porque o quarto esfria rápido e ele desliga antes",
+      "Muda apenas se a porta ou a janela estiverem abertas"
+    ],
+    "indice_correto": 0,
+    "explicacao": "Quanto mais fria a temperatura escolhida, mais esforço e energia o aparelho gasta para manter o ambiente. Uma temperatura perto de 23 °C costuma equilibrar conforto e economia.",
+    "fonte": "Trilha `ar-condicionado-sem-susto`, Lição 2 (*Temperatura certa e portas fechadas*) — *\"Temperatura: cada grau a menos aumenta o consumo. Uma temperatura perto de 23 °C costuma ser confortável.\"*"
+  },
+  {
+    "slug": "ar-condicionado-sem-susto",
+    "ordem": 3,
+    "enunciado": "Além do selo Procel com classificação A, qual característica citada nas lições costuma fazer um ar-condicionado novo gastar menos energia?",
+    "opcoes": [
+      "Funcionar em tomada de 220 V em vez de 127 V",
+      "Contar com a tecnologia inverter no aparelho",
+      "Vir com função turbo para resfriar em minutos",
+      "Ter saída de ar direcionada para a parede fria"
+    ],
+    "indice_correto": 1,
+    "explicacao": "Na hora da compra, além do selo Procel classificação A, a tecnologia inverter ajuda o aparelho a trabalhar de forma mais econômica.",
+    "fonte": "Trilha `ar-condicionado-sem-susto`, Lição 2 (*Temperatura certa e portas fechadas*) — *\"procure o **selo Procel** com classificação A e, se possível, a tecnologia **inverter**, que costuma gastar menos.\"*"
+  },
+  {
+    "slug": "ar-condicionado-sem-susto",
+    "ordem": 4,
+    "enunciado": "Por que desligar o ar-condicionado 30 minutos antes de dormir ou usar o timer ajuda a economizar sem perder o conforto?",
+    "opcoes": [
+      "Porque a tarifa de energia fica menor durante a madrugada",
+      "Porque o motor consome o dobro de watts depois da meia-noite",
+      "Porque o quarto continua fresco por um tempo após desligar",
+      "Porque desligar antes evita que o filtro acumule poeira no ar"
+    ],
+    "indice_correto": 2,
+    "explicacao": "Mesmo após desligar o aparelho, o ambiente mantém a temperatura fresca por algum tempo. Se precisar de ventilação no fim da noite, um ventilador gasta muito menos energia.",
+    "fonte": "Trilha `ar-condicionado-sem-susto`, Lição 3 (*Desligar antes de dormir*) — *\"O quarto continua fresco por um tempo depois que o ar é desligado. Por isso vale: desligar o ar **30 minutos antes de dormir** ou usar o **timer** (função 'sleep'); deixar o ventilador ligado no lugar do ar no fim da noite.\"*"
+  },
+  {
+    "slug": "entendendo-a-sua-conta-de-luz",
+    "ordem": 1,
+    "enunciado": "Qual é a diferença entre watt (W) e quilowatt-hora (kWh) na leitura de aparelhos e da conta de luz?",
+    "opcoes": [
+      "Watt é a energia do mês inteiro; kWh é a potência de cada hora",
+      "Watt mede o valor em reais; kWh mede apenas a tensão elétrica",
+      "Watt é a potência no instante; kWh é a energia ao longo do tempo",
+      "Os dois medem exatamente a mesma grandeza em escalas diferentes"
+    ],
+    "indice_correto": 2,
+    "explicacao": "A potência em watts indica quanta energia o aparelho pede naquele momento. Já o kWh mostra a energia total usada quando essa potência fica ligada por um tempo.",
+    "fonte": "Trilha `entendendo-a-sua-conta-de-luz`, Lição 1 (*O que é kWh*) — *\"**Watt (W)** é a potência: quanta energia o aparelho usa a cada instante. **kWh** é energia: potência ao longo do tempo.\"*"
+  },
+  {
+    "slug": "entendendo-a-sua-conta-de-luz",
+    "ordem": 2,
+    "enunciado": "Para que serve o gráfico de histórico de consumo que aparece na conta de luz?",
+    "opcoes": [
+      "Para mostrar a previsão de gasto da casa nos meses seguintes",
+      "Para acompanhar se a casa gastou mais ou menos nos últimos meses",
+      "Para listar a potência em watts de cada aparelho da residência",
+      "Para informar os horários do dia em que a tarifa fica mais cara"
+    ],
+    "indice_correto": 1,
+    "explicacao": "O histórico reúne o consumo em kWh dos meses anteriores em um gráfico. Olhar essa comparação ajuda a perceber mudanças nos gastos da família.",
+    "fonte": "Trilha `entendendo-a-sua-conta-de-luz`, Lição 2 (*Lendo a conta*) — *\"**Histórico:** gráfico com o consumo dos últimos meses. Ótimo para ver se a casa está gastando mais ou menos.\"*"
+  },
+  {
+    "slug": "entendendo-a-sua-conta-de-luz",
+    "ordem": 3,
+    "enunciado": "Na conta de luz, quem define os valores extras cobrados em cada bandeira tarifária (verde, amarela e vermelha)?",
+    "opcoes": [
+      "A prefeitura do município, junto à taxa da rua",
+      "A distribuidora local, conforme o bairro",
+      "O governo estadual, na mesma regra do ICMS",
+      "A ANEEL, para as bandeiras em todo o país"
+    ],
+    "indice_correto": 3,
+    "explicacao": "Os valores de cada bandeira tarifária são definidos pela ANEEL, e não pela prefeitura ou pela distribuidora local. As bandeiras avisam quando o custo de gerar energia no país sobe.",
+    "fonte": "Trilha `entendendo-a-sua-conta-de-luz`, Lição 3 (*Bandeiras tarifárias*) — *\"Os valores de cada bandeira são definidos pela **ANEEL**.\"*"
+  },
+  {
+    "slug": "entendendo-a-sua-conta-de-luz",
+    "ordem": 4,
+    "enunciado": "Para que serve a Contribuição de Iluminação Pública que aparece discriminada na conta de luz?",
+    "opcoes": [
+      "É cobrada pelo município para manter a iluminação das ruas",
+      "É cobrada pela distribuidora pelas lâmpadas de dentro da casa",
+      "É um tributo federal para construir novas usinas no país",
+      "É uma taxa extra aplicada quando o consumo passa do limite"
+    ],
+    "indice_correto": 0,
+    "explicacao": "A Contribuição de Iluminação Pública é municipal e financia as luminárias de ruas e espaços públicos. Ela entra na fatura junto com tributos estaduais e federais, além da tarifa da energia.",
+    "fonte": "Trilha `entendendo-a-sua-conta-de-luz`, Lição 4 (*Impostos e taxas*) — *\"Além da energia, a conta tem tributos: ... **Contribuição de Iluminação Pública:** cobrada pelo município para manter a iluminação das ruas.\"*"
+  },
+  {
+    "slug": "lixo-eletronico-onde-descartar",
+    "ordem": 1,
+    "enunciado": "Além de evitar a contaminação por metais pesados, qual é a outra vantagem de enviar equipamentos eletrônicos usados para reciclagem?",
+    "opcoes": [
+      "Reaproveitar materiais como cobre, alumínio e ouro",
+      "Extrair eletricidade que sobrou em peças velhas",
+      "Recuperar a carga original de baterias já gastas",
+      "Abater parte dos impostos cobrados na conta de luz"
+    ],
+    "indice_correto": 0,
+    "explicacao": "Os eletrônicos têm metais valiosos que podem ser recuperados pela reciclagem. Jogar tudo no lixo comum desperdiça esses recursos e coloca a saúde de quem trabalha com o lixo em risco.",
+    "fonte": "Trilha `lixo-eletronico-onde-descartar`, Lição 1 (*O que é lixo eletrônico*) — *\"Ao mesmo tempo, eles têm materiais valiosos, como cobre, alumínio e até um pouco de ouro, que podem ser **reciclados**.\"*"
+  },
+  {
+    "slug": "lixo-eletronico-onde-descartar",
+    "ordem": 2,
+    "enunciado": "Ao procurar um ecoponto ou ponto de coleta para descartar pilhas e baterias em São Luís, o que vale conferir antes de ir?",
+    "opcoes": [
+      "Se a coleta seletiva comum da rua aceita todo tipo de pilha",
+      "Se o ponto paga em dinheiro pelo peso de cada bateria levada",
+      "Se é preciso desmontar e separar os fios internos antes de sair",
+      "Se o ponto recebe pilhas e baterias e seu horário de abertura"
+    ],
+    "indice_correto": 3,
+    "explicacao": "Nem todo ponto de coleta recebe todos os tipos de resíduos eletrônicos, e cada local tem horário próprio. Conferir a descrição e o horário evita viagem perdida.",
+    "fonte": "Trilha `lixo-eletronico-onde-descartar`, Lição 2 (*Onde descartar*) — *\"Alguns também recebem pilhas e baterias: a descrição de cada ponto avisa. Antes de ir, confira o horário de funcionamento.\"*"
+  },
+  {
+    "slug": "lixo-eletronico-onde-descartar",
+    "ordem": 3,
+    "enunciado": "Antes de levar um celular ou outro aparelho antigo para um ponto de coleta, o que vale verificar primeiro?",
+    "opcoes": [
+      "Se as peças plásticas podem ir para o lixo comum",
+      "Se é obrigatório entregar na loja onde foi comprado",
+      "Se ainda dá para consertar o defeito ou doar a alguém",
+      "Se o aparelho precisa ser aberto e desmontado em casa"
+    ],
+    "indice_correto": 2,
+    "explicacao": "Muitas vezes o defeito é simples de consertar ou o aparelho ainda serve para outra pessoa. Só quando não tem mais uso é que ele segue para o ponto de coleta, sempre após apagar os dados pessoais.",
+    "fonte": "Trilha `lixo-eletronico-onde-descartar`, Lição 3 (*Antes de descartar*) — *\"1. **Dá para consertar?** Muitas vezes o problema é simples. 2. **Dá para doar?** Um celular antigo pode servir para outra pessoa.\"*"
+  },
+  {
+    "slug": "lixo-eletronico-onde-descartar",
+    "ordem": 4,
+    "enunciado": "Qual cuidado de segurança é recomendado ao guardar lâmpadas fluorescentes e baterias inchadas até o momento de levar ao ponto de coleta?",
+    "opcoes": [
+      "Quebrar as lâmpadas para caberem melhor em garrafas",
+      "Manter lâmpadas inteiras e baterias longe do calor",
+      "Furar a bateria inchada para aliviar o gás interno",
+      "Guardar as baterias perto de aparelhos que esquentam"
+    ],
+    "indice_correto": 1,
+    "explicacao": "Lâmpadas fluorescentes podem conter mercúrio, por isso não devem ser quebradas. Já baterias inchadas oferecem risco e precisam ficar longe de fontes de calor até o descarte seguro.",
+    "fonte": "Trilha `lixo-eletronico-onde-descartar`, Lição 3 (*Antes de descartar*) — *\"4. **Cuidado com lâmpadas e baterias:** não quebre lâmpadas fluorescentes, que podem ter mercúrio, e guarde baterias inchadas longe do calor.\"*"
+  }
+]
+$diagnostico_aprovado$::jsonb) as d(slug text,ordem integer,enunciado text,opcoes jsonb,indice_correto smallint,explicacao text,fonte text)
+join public.trilhas t on t.slug=d.slug
+on conflict (trilha_id,ordem) do update set
+  enunciado=excluded.enunciado,opcoes=excluded.opcoes,indice_correto=excluded.indice_correto,explicacao=excluded.explicacao,fonte=excluded.fonte;

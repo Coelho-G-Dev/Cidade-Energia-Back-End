@@ -17,7 +17,8 @@ import {
   type TrechoRecuperado,
 } from "@/lib/ia/tutor";
 
-export type RespostaTutor = { resposta: string; licoesRelacionadas: LicaoRelacionada[] };
+export type RespostaGeradaTutor = { resposta: string; licoesRelacionadas: LicaoRelacionada[] };
+export type RespostaTutor = RespostaGeradaTutor & { respostaId: string };
 export type ConfigTutor = ConfigGemini & { modelo: string };
 
 export type PedidoTutor = {
@@ -28,8 +29,13 @@ export type PedidoTutor = {
   gemini?: ConfigTutor;
 };
 
-const tutorIndisponivel = () =>
-  new ErroApi(503, "TUTOR_INDISPONIVEL", "O Energinho está descansando agora. Tente de novo em alguns minutos.");
+const tutorIndisponivel = (causa?: ErroGemini) => {
+  const erro = new ErroApi(503, "TUTOR_INDISPONIVEL", "O Energinho está descansando agora. Tente de novo em alguns minutos.");
+  // A rota continua devolvendo somente seu erro público 503. O avaliador pode
+  // reconhecer o 429 original, sem analisar mensagens nem expor detalhes remotos.
+  if (causa) Object.defineProperty(erro, "cause", { value: causa });
+  return erro;
+};
 
 function configGemini(): ConfigTutor {
   try {
@@ -41,14 +47,16 @@ function configGemini(): ConfigTutor {
   }
 }
 
-export async function registrarUsoTutor(admin: SupabaseClient, usuarioId: string, limite = TUTOR_LIMITE_POR_HORA): Promise<void> {
+export async function registrarUsoTutor(admin: SupabaseClient, usuarioId: string, limite = TUTOR_LIMITE_POR_HORA): Promise<string> {
   const { data, error } = await admin
     .rpc("registrar_uso_tutor", { p_perfil_id: usuarioId, p_limite: limite, p_janela: "1 hour" })
-    .single<{ permitido: boolean; liberado_em: string | null }>();
+    .single<{ permitido: boolean; liberado_em: string | null; id: string | null }>();
   if (error) throw erroDoBanco(error);
   if (!data.permitido) {
     throw new ErroApi(429, "LIMITE_TUTOR", mensagemLimiteTutor(limite, data.liberado_em ? new Date(data.liberado_em) : null));
   }
+  if (!data.id || !/^[1-9]\d*$/.test(data.id)) throw new Error("Identificador de resposta do tutor inválido.");
+  return data.id;
 }
 
 export async function buscarTrechos(
@@ -135,8 +143,17 @@ async function contextoOuNada(admin: SupabaseClient, usuarioId: string): Promise
 
 export async function responderTutor(pedido: PedidoTutor): Promise<RespostaTutor> {
   const gemini = pedido.gemini ?? configGemini();
-  await registrarUsoTutor(pedido.admin, pedido.usuarioId);
-  const estudante = contextoOuNada(pedido.admin, pedido.usuarioId);
+  const respostaId = await registrarUsoTutor(pedido.admin, pedido.usuarioId);
+  return { ...await gerarRespostaTutor({ ...pedido, gemini, estudante: contextoOuNada(pedido.admin, pedido.usuarioId) }), respostaId };
+}
+
+export type PedidoGeracaoTutor = Omit<PedidoTutor, "usuarioId"> & {
+  estudante?: ContextoEstudante | null | Promise<ContextoEstudante | null>;
+};
+
+/** Caminho comum de geração: só match_documentos e licoes no banco. */
+export async function gerarRespostaTutor(pedido: PedidoGeracaoTutor): Promise<RespostaGeradaTutor> {
+  const gemini = pedido.gemini ?? configGemini();
 
   try {
     const embedding = await gerarEmbedding(textoDeConsulta(pedido.mensagem), gemini);
@@ -146,7 +163,7 @@ export async function responderTutor(pedido: PedidoTutor): Promise<RespostaTutor
       gerarResposta(
         {
           modelo: gemini.modelo,
-          instrucoes: montarInstrucoes(relevantes, await estudante),
+          instrucoes: montarInstrucoes(relevantes, await pedido.estudante ?? null),
           historico: pedido.historico,
           mensagem: pedido.mensagem,
         },
@@ -159,7 +176,7 @@ export async function responderTutor(pedido: PedidoTutor): Promise<RespostaTutor
   } catch (e) {
     if (e instanceof ErroGemini) {
       console.error(`Tutor: ${e.message}`);
-      throw tutorIndisponivel();
+      throw tutorIndisponivel(e);
     }
     throw e;
   }

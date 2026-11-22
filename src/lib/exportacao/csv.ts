@@ -37,6 +37,19 @@ export function exportarImpactoCsv(impacto: Impacto): string {
     { indicador: "Potencial de hábitos em reais por mês", valor: p.reaisMes, unidade: "R$/mês", observacao: calculo },
     { indicador: "Estudantes no potencial de hábitos", valor: p.estudantes, unidade: "estudantes", observacao: calculo },
   ];
+  const diagnostico = (prefixo: string, d: { estudantes: number | null; acertoMedioAntes: number | null; acertoMedioDepois: number | null }) => {
+    indicadores.push(
+      { indicador: `${prefixo} — estudantes pareados`, valor: d.estudantes, unidade: "estudantes" },
+      { indicador: `${prefixo} — acerto médio antes`, valor: d.acertoMedioAntes, unidade: "%", avisoOculto: "menos de 5 respondentes" },
+      { indicador: `${prefixo} — acerto médio depois`, valor: d.acertoMedioDepois, unidade: "%", avisoOculto: "menos de 5 respondentes" },
+    );
+  };
+  diagnostico("Diagnóstico geral", i.aprendizado.diagnostico);
+  for (const t of i.aprendizado.diagnostico.porTrilha) diagnostico(`Diagnóstico: ${t.titulo}`, t);
+  indicadores.push(
+    { indicador: "Respostas do Energinho avaliadas", valor: i.energinho.respostasAvaliadas, unidade: "respostas" },
+    { indicador: "Respostas do Energinho avaliadas como úteis", valor: i.energinho.percentualUtil, unidade: "%", avisoOculto: "menos de 5 respondentes" },
+  );
   return gerarCsv([
     ["indicador", "valor", "unidade", "periodo_de", "periodo_ate", "observacao"],
     ...indicadores.map((linha) => [linha.indicador, linha.valor, linha.unidade, i.periodo.de, i.periodo.ate,

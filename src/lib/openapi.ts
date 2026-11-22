@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { impactoSchema, painelProfessorSchema } from "@/lib/validacao/painel";
+import { diagnosticoSchema, envioDiagnosticoSchema, registroDiagnosticoSchema } from "@/lib/validacao/diagnostico";
+import { avaliacaoTutorSchema } from "@/lib/validacao/avaliacao-tutor";
 
 const json = <E extends object = object>(schema: object, extras?: E) => ({
   "application/json": { schema, ...(extras as E) },
@@ -113,6 +115,24 @@ export const especificacaoOpenApi = {
     { name: "Rankings e mapa", description: "Rankings agregados (sem dados individuais) e pontos no mapa." },
   ],
   paths: {
+    "/api/tutor/avaliar": { post: { tags: ["Tutor"], summary: "Registra Ajudou? sem guardar texto", security: [{ bearerAuth: [] }],
+      requestBody: { required: true, content: json(z.toJSONSchema(avaliacaoTutorSchema)) },
+      responses: { "201": { description: "Avaliação registrada", content: json({ type: "object", required: ["registrado"], additionalProperties: false, properties: { registrado: { const: true } } }) },
+        "400": respostaErro("Entrada inválida", "ENTRADA_INVALIDA", "Dados inválidos."), "401": respostaErro("Sessão obrigatória", "NAO_AUTENTICADO", "Faça login."),
+        "404": respostaErro("Inexistente ou de outro estudante", "RESPOSTA_NAO_ENCONTRADA", "Resposta não encontrada."),
+        "409": respostaErro("Já avaliada", "AVALIACAO_JA_REGISTRADA", "Você já avaliou esta resposta.") } } },
+    "/api/trilhas/{slug}/diagnostico": {
+      get: { tags: ["Diagnóstico"], summary: "Perguntas do diagnóstico, sem gabarito", security: [{ bearerAuth: [] }],
+        parameters: [{ name: "slug", in: "path", required: true, schema: { type: "string" } }, { name: "momento", in: "query", required: true, schema: { type: "string", enum: ["antes", "depois"] } }],
+        responses: { "200": { description: "Disponibilidade e perguntas públicas; indisponível/respondido retorna perguntas vazias", content: json(z.toJSONSchema(diagnosticoSchema)) },
+          "400": respostaErro("Entrada inválida", "ENTRADA_INVALIDA", "Dados inválidos."), "401": respostaErro("Sessão obrigatória", "NAO_AUTENTICADO", "Faça login."), "404": respostaErro("Trilha inexistente", "TRILHA_NAO_ENCONTRADA", "Trilha não encontrada.") } },
+      post: { tags: ["Diagnóstico"], summary: "Registra quatro respostas, sem pontos", security: [{ bearerAuth: [] }],
+        parameters: [{ name: "slug", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: { required: true, content: json(z.toJSONSchema(envioDiagnosticoSchema)) },
+        responses: { "201": { description: "Antes: só confirmação. Depois: resultado do próprio estudante e correção.", content: json(z.toJSONSchema(registroDiagnosticoSchema)) },
+          "400": respostaErro("Lote inválido", "ENTRADA_INVALIDA", "Envie todas as perguntas válidas, sem repetir."), "401": respostaErro("Sessão obrigatória", "NAO_AUTENTICADO", "Faça login."), "404": respostaErro("Trilha inexistente", "TRILHA_NAO_ENCONTRADA", "Trilha não encontrada."),
+          "409": { description: "DIAGNOSTICO_INDISPONIVEL ou DIAGNOSTICO_JA_RESPONDIDO", content: json(ref("Erro")) } } },
+    },
     "/api/impacto/exportar": {
       get: {
         tags: ["Painéis"], summary: "Exporta os totais de impacto em CSV (D-006)",
@@ -138,7 +158,7 @@ export const especificacaoOpenApi = {
     "/api/impacto": {
       get: {
         tags: ["Painéis"], summary: "Totais agregados do piloto (D-005/D-011)",
-        description: "Contagens com mínimo de 3 participantes; percentualAcertos é null com menos de 5 estudantes distintos respondendo (D-012). O período continua sem defasagem diária. Estimativa de potencial de hábitos, sem economia das missões. Cache-Control: private, no-store.",
+        description: "Contagens com mínimo de 3 participantes; percentuais exigem 5 estudantes distintos (D-012). D-013: aprendizado.diagnostico compara apenas pares completos antes/depois e filtra pela data do depois; traz total geral e porTrilha. energinho traz respostasAvaliadas e percentualUtil, sem conversas. O período continua sem defasagem diária. Estimativa de potencial de hábitos, sem economia das missões. Cache-Control: private, no-store.",
         security: [{ ChaveImpacto: [] }],
         parameters: [
           { name: "de", in: "query", schema: { type: "string", format: "date" }, description: "Dia inicial incluído em São Luís; padrão: 365 dias antes de ate." },
@@ -155,7 +175,7 @@ export const especificacaoOpenApi = {
     "/api/professor/escola": {
       get: {
         tags: ["Painéis"], summary: "Agregados da escola inteira (D-004)",
-        description: "D-012: dados até o fim de ontem no fuso de São Luís, inclusive entrada verificada na escola; dadosAte (AAAA-MM-DD), após atualizadoEm, informa o último dia incluído. atualizadoEm é a meia-noite do fechamento em ISO UTC. Só estudantes verificados, com primeiro nome e fora de testes. Contagens exigem 3 participantes; percentuais, 5 respondentes distintos. perguntasMaisErradas só inclui perguntas com 5+ respondentes. Escola com menos de 3: oculto=true e blocos nulos. Cache-Control: private, no-store. Limite por endereço: 30/minuto.",
+        description: "D-012: dados até o fim de ontem no fuso de São Luís, inclusive entrada verificada na escola; dadosAte (AAAA-MM-DD), após atualizadoEm, informa o último dia incluído. atualizadoEm é a meia-noite do fechamento em ISO UTC. Só estudantes verificados, com primeiro nome e fora de testes. Contagens exigem 3 participantes; percentuais, 5 respondentes distintos. perguntasMaisErradas só inclui perguntas com 5+ respondentes. D-013: diagnostico após quiz contém pares completos por trilha, com estudantes/acertoMedioAntes/acertoMedioDepois, respeitando o mesmo corte diário; escola oculta recebe diagnostico=null. Escola com menos de 3: oculto=true e blocos nulos. Cache-Control: private, no-store. Limite por endereço: 30/minuto.",
         security: [{ CodigoProfessor: [] }],
         responses: {
           "200": { description: "Agregados da escola", content: json(z.toJSONSchema(painelProfessorSchema)) },
@@ -1377,8 +1397,9 @@ export const especificacaoOpenApi = {
       },
       RespostaTutor: {
         type: "object",
-        required: ["resposta", "licoesRelacionadas"],
+        required: ["resposta", "licoesRelacionadas", "respostaId"],
         properties: {
+          respostaId: { type: "string", pattern: "^[1-9][0-9]*$", description: "Id da linha de tutor_uso desta mensagem, usado em POST /api/tutor/avaliar." },
           resposta: { type: "string", maxLength: 1500, description: "Texto do Energinho (até 1.500 caracteres)." },
           licoesRelacionadas: {
             type: "array",

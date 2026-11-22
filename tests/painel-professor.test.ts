@@ -16,6 +16,7 @@ const visivel = {
     { slug: "solar", titulo: "Energia solar", totalLicoes: 4, estudantesQueComecaram: 3, estudantesQueConcluiram: null },
   ] },
   quiz: { respostas: null, percentualAcertos: null, perguntasMaisErradas: [] },
+  diagnostico: [],
   missoes: [{ slug: "ar", titulo: "Ar desligado", estudantesQueComecaram: null, estudantesQueConcluiram: null, diasRegistrados: null }],
   simulacoes: { estudantesQueSimularam: null },
 };
@@ -35,7 +36,7 @@ const pedir = (codigo: string | null = "ABCDEFGHJKLM", query = "") => GET(new Re
 
 describe("GET /api/professor/escola", () => {
   it("escola com 2 elegíveis: oculta todos os blocos, preservando escola e código dos estudantes", async () => {
-    dados = { escola, atualizadoEm, dadosAte, estudantes: null, oculto: true, progresso: null, quiz: null, missoes: null, simulacoes: null };
+    dados = { escola, atualizadoEm, dadosAte, estudantes: null, oculto: true, progresso: null, quiz: null, diagnostico: null, missoes: null, simulacoes: null };
     const r = await pedir();
     expect(r.status).toBe(200); expect(await r.json()).toEqual(dados);
     expect(r.headers.get("cache-control")).toBe("private, no-store");

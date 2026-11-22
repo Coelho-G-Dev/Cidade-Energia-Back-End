@@ -52,7 +52,7 @@ function bancoFalso({ permitido = true, trechos = [], perfil = null, simulacao =
       return { data: op.tabela === "perfis" ? perfil : simulacao };
     }
     if (op.tabela === "rpc:registrar_uso_tutor") {
-      return { data: { permitido, liberado_em: permitido ? null : "2026-10-16T16:30:00Z" } };
+      return { data: { permitido, liberado_em: permitido ? null : "2026-10-16T16:30:00Z", id: permitido ? "123" : null } };
     }
     if (op.tabela === "rpc:match_documentos") return { data: trechos };
     if (op.tabela === "licoes") {
@@ -295,6 +295,7 @@ describe("responderTutor", () => {
 
     expect(r).toEqual({
       resposta: "O sol é forte aqui!",
+      respostaId: "123",
       licoesRelacionadas: [
         { id: LICAO_SOL, titulo: "O sol de São Luís", trilhaSlug: "energia-solar-em-sao-luis" },
         { id: LICAO_PLACA, titulo: "Como a placa solar funciona", trilhaSlug: "energia-solar-em-sao-luis" },
@@ -436,7 +437,7 @@ describe("responderTutor", () => {
       historico: [],
       gemini: config(buscar),
     });
-    expect(r).toEqual({ resposta: RESPOSTA_BLOQUEADA, licoesRelacionadas: [] });
+    expect(r).toEqual({ resposta: RESPOSTA_BLOQUEADA, licoesRelacionadas: [], respostaId: "123" });
   });
 
   it("corta a resposta no limite de tamanho", async () => {

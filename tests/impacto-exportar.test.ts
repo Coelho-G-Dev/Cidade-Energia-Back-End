@@ -56,7 +56,7 @@ describe("CSV: escape e injeção de fórmula", () => {
   it("a observação de economia também passa pela proteção", () => {
     const i = completo(); i.economiaEstimada.comoCalculamos.potencialHabitos = '=1+1;"teste"\nlinha';
     const linhas = lerCsv(exportarImpactoCsv(i));
-    expect(linhas.at(-1)![5]).toBe(`'${i.economiaEstimada.comoCalculamos.potencialHabitos}`);
+    expect(linhas.find((l) => l[0] === "Estudantes no potencial de hábitos")![5]).toBe(`'${i.economiaEstimada.comoCalculamos.potencialHabitos}`);
     expect(linhas.every((linha) => linha.length === 6)).toBe(true);
   });
 });
@@ -71,9 +71,9 @@ describe("GET /api/impacto/exportar", () => {
     const texto = new TextDecoder().decode(bytes);
     expect(texto).toContain("indicador;valor;unidade;periodo_de;periodo_ate;observacao\r\n");
     expect(texto).toContain("Potencial de hábitos em reais por mês;41,2;R$/mês;");
-    const linhas = lerCsv(texto); expect(linhas).toHaveLength(18); expect(linhas.every((l) => l.length === 6)).toBe(true);
+    const linhas = lerCsv(texto); expect(linhas).toHaveLength(23); expect(linhas.every((l) => l.length === 6)).toBe(true);
   });
-  it("os 17 números e o período batem com GET /api/impacto, usando a mesma RPC", async () => {
+  it("todos os números e o período batem com GET /api/impacto, usando a mesma RPC", async () => {
     const json = await (await impacto(new Request(`http://localhost/api/impacto?${periodo}`, { headers: { "X-Chave-Impacto": CHAVE } }))).json();
     const csv = lerCsv(await (await exportar(pedido())).text());
     const esperados: Record<string, number | null> = {
@@ -88,26 +88,31 @@ describe("GET /api/impacto/exportar", () => {
       "Potencial de hábitos em kWh por mês": json.economiaEstimada.potencialHabitos.kwhMes,
       "Potencial de hábitos em reais por mês": json.economiaEstimada.potencialHabitos.reaisMes,
       "Estudantes no potencial de hábitos": json.economiaEstimada.potencialHabitos.estudantes,
+      "Diagnóstico geral — estudantes pareados": json.aprendizado.diagnostico.estudantes,
+      "Diagnóstico geral — acerto médio antes": json.aprendizado.diagnostico.acertoMedioAntes,
+      "Diagnóstico geral — acerto médio depois": json.aprendizado.diagnostico.acertoMedioDepois,
+      "Respostas do Energinho avaliadas": json.energinho.respostasAvaliadas,
+      "Respostas do Energinho avaliadas como úteis": json.energinho.percentualUtil,
     };
     expect(csv.slice(1).map((l) => l[0]).sort()).toEqual(Object.keys(esperados).sort());
     for (const [indicador, valor, , de, ate, observacao] of csv.slice(1)) {
       const esperado = esperados[indicador!];
       expect(valor).toBe(esperado === null ? "" : String(esperado).replace(".", ","));
       expect({ de, ate }).toEqual(json.periodo);
-      if (esperado === null) expect(observacao).toBe(indicador === "Acertos do quiz" ? "menos de 5 respondentes" : "menos de 3 estudantes");
+      if (esperado === null) expect(observacao).toBe(indicador === "Acertos do quiz" || indicador?.includes("acerto médio") || indicador === "Respostas do Energinho avaliadas como úteis" ? "menos de 5 respondentes" : "menos de 3 estudantes");
     }
     expect(banco.operacoes.map((o) => [o.tabela, usou(o, "rpc")?.args])).toEqual([
       ["rpc:painel_impacto", [{ p_de: "2026-11-20", p_ate: "2026-11-20" }]],
       ["rpc:painel_impacto", [{ p_de: "2026-11-20", p_ate: "2026-11-20" }]],
     ]);
-    for (const l of csv.slice(-3)) expect(l[5]).toBe(json.economiaEstimada.comoCalculamos.potencialHabitos);
+    for (const l of csv.filter((l) => l[0]?.includes("Potencial de hábitos") || l[0] === "Estudantes no potencial de hábitos")) expect(l[5]).toBe(json.economiaEstimada.comoCalculamos.potencialHabitos);
   });
   it("null sai vazio com aviso e explicação; zero visível permanece zero", () => {
     const i = completo(); i.economiaEstimada.potencialHabitos = { reaisMes: null, kwhMes: null, estudantes: null };
     i.aprendizado.percentualAcertos = 0;
     const linhas = lerCsv(exportarImpactoCsv(i));
     expect(linhas.find((l) => l[0] === "Acertos do quiz")![1]).toBe("0");
-    for (const l of linhas.slice(-3)) {
+    for (const l of linhas.filter((l) => l[0]?.includes("Potencial de hábitos") || l[0] === "Estudantes no potencial de hábitos")) {
       expect(l[1]).toBe(""); expect(l[5]).toContain("menos de 3 estudantes");
       expect(l[5]).toContain(COMO_CALCULAMOS_POTENCIAL_HABITOS);
     }
