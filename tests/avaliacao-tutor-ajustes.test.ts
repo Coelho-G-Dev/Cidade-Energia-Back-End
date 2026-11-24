@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { ErroApi } from "@/lib/http/erros";
 import { avaliarConjunto, avaliarResposta, intervaloCliSchema, referenciaSchema, relatorioAvaliacao } from "@/lib/ia/avaliacao";
 import { gravarRelatorioAvaliacao } from "@/lib/ia/relatorio-arquivo";
 import { ErroGemini } from "@/lib/ia/gemini";
@@ -50,35 +51,83 @@ describe("pausas e tentativas sem Gemini real", () => {
     expect(chamadas).toBe(3); expect(esperar.mock.calls.map(([ms]) => ms)).toEqual([4000, 8000]);
     expect(r[0]).toMatchObject({ status: "aprovado", tentativas: 3, falhas: [] });
   });
-  it("429 esgotado fica à parte e fora da taxa; outros erros não são repetidos", async () => {
+  it("429 e 503 esgotados ficam na mesma seção e fora da taxa", async () => {
     const esperar = vi.fn<(ms: number) => Promise<void>>(async () => {});
-    const repetido = { ...casos[0]!, id: "limite-429" }; const falha = { ...casos[0]!, id: "falha-503" };
+    const limite = { ...casos[0]!, id: "limite-429" };
+    const indisponivel = { ...casos[0]!, id: "indisponivel-503" };
+    const falha = { ...casos[0]!, id: "falha-500" };
     const chamadas = new Map<string, number>();
-    const r = await avaliarConjunto([casos[0]!, repetido, falha], async (c) => {
+    const r = await avaliarConjunto([casos[0]!, limite, indisponivel, falha], async (c) => {
       chamadas.set(c.id, (chamadas.get(c.id) ?? 0) + 1);
-      if (c.id === repetido.id) throw new ErroGemini("DADO-REMOTO-NAO-PUBLICAVEL", 429);
-      if (c.id === falha.id) throw new ErroGemini("DADO-REMOTO-NAO-PUBLICAVEL", 503);
+      if (c.id === limite.id) throw new ErroGemini("DADO-REMOTO-NAO-PUBLICAVEL", 429);
+      if (c.id === indisponivel.id) throw new ErroGemini("DADO-REMOTO-NAO-PUBLICAVEL", 503);
+      if (c.id === falha.id) throw new ErroGemini("DADO-REMOTO-NAO-PUBLICAVEL 503", 500);
       return "Energia";
     }, { intervaloMs: 0, esperar });
-    expect(chamadas.get(repetido.id)).toBe(3); expect(chamadas.get(falha.id)).toBe(1);
+    expect(chamadas.get(limite.id)).toBe(3);
+    expect(chamadas.get(indisponivel.id)).toBe(3);
+    expect(chamadas.get(falha.id)).toBe(1);
     expect(r[1]).toMatchObject({ status: "nao_avaliado", tentativas: 3, falhas: [], resposta: "não avaliado (limite do Gemini)" });
+    expect(r[2]).toMatchObject({ status: "nao_avaliado", tentativas: 3, falhas: [], resposta: "não avaliado (Gemini indisponível)" });
+    expect(r[3]).toMatchObject({ status: "reprovado", tentativas: 1 });
     const md = relatorioAvaliacao(r, new Date());
-    expect(md).toContain("| no_tema | 1 | 2 | 1 | 3 | 50,0% |"); expect(md).not.toContain("DADO-REMOTO-NAO-PUBLICAVEL");
-    expect(md.split("## Reprovações")[1]!.split("## Não avaliados")[0]).not.toContain("limite-429");
-    expect(md).toContain("limite-429 (no_tema): não avaliado (limite do Gemini); 3 tentativas.");
+    expect(md).toContain("| Grupo | Aprovados | Avaliados | Não avaliados | Casos | Taxa |");
+    expect(md).toContain("| no_tema | 1 | 2 | 2 | 4 | 50,0% |");
+    expect(md).not.toContain("DADO-REMOTO-NAO-PUBLICAVEL");
+    const [reprovacoes, naoAvaliados] = md.split("## Reprovações\n")[1]!.split("## Não avaliados\n");
+    expect(reprovacoes).toContain("falha-500");
+    expect(reprovacoes).not.toContain(limite.id);
+    expect(reprovacoes).not.toContain(indisponivel.id);
+    expect(naoAvaliados).toContain("limite-429 (no_tema): não avaliado (limite do Gemini); 3 tentativas.");
+    expect(naoAvaliados).toContain("indisponivel-503 (no_tema): não avaliado (Gemini indisponível); 3 tentativas.");
+  });
+  it("503 público sem causa do Gemini é reprovado na primeira tentativa", async () => {
+    const responder = vi.fn(async () => { throw new ErroApi(503, "TUTOR_INDISPONIVEL", "O Energinho está descansando agora."); });
+    const esperar = vi.fn<(ms: number) => Promise<void>>(async () => {});
+    const r = await avaliarConjunto([casos[0]!], responder, { esperar });
+    expect(responder).toHaveBeenCalledTimes(1);
+    expect(esperar).not.toHaveBeenCalled();
+    expect(r[0]).toMatchObject({ status: "reprovado", tentativas: 1 });
   });
   it("grupo inteiramente limitado não ganha taxa de 0% nem de 100%", async () => {
     const r = await avaliarConjunto([casos[0]!], async () => { throw new ErroGemini("429", 429); }, { intervaloMs: 0, esperar: async () => {} });
     expect(relatorioAvaliacao(r, new Date())).toContain("| no_tema | 0 | 0 | 1 | 1 | sem casos avaliados |");
   });
-  it("reconhece o 429 original no erro público 503 da geração compartilhada", async () => {
+  it.each([
+    [429, "não avaliado (limite do Gemini)"],
+    [503, "não avaliado (Gemini indisponível)"],
+  ])("reconhece o %i persistente na causa interna da geração compartilhada", async (status, resposta) => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const { cliente } = supabaseFalso(() => { throw new Error("Não deveria consultar banco após embedding limitado"); });
-      const buscar = vi.fn(async () => new Response("", { status: 429 }));
+      const { cliente } = supabaseFalso(() => { throw new Error("Banco consultado após falha de embedding"); });
+      const buscar = vi.fn(async () => new Response("", { status }));
+      const esperar = vi.fn<(ms: number) => Promise<void>>(async () => {});
       const r = await avaliarConjunto([casos[0]!], async (caso) => (await gerarRespostaTutor({ admin: cliente, mensagem: caso.pergunta, historico: [], gemini: { apiKey: "ficticia", modelo: "teste", buscar } })).resposta,
-        { intervaloMs: 0, esperar: async () => {} });
-      expect(buscar).toHaveBeenCalledTimes(3); expect(r[0]!.status).toBe("nao_avaliado");
+        { esperar });
+      expect(buscar).toHaveBeenCalledTimes(3);
+      expect(esperar.mock.calls).toEqual([[4000], [8000]]);
+      expect(r[0]).toMatchObject({ status: "nao_avaliado", tentativas: 3, falhas: [], resposta });
+    } finally { log.mockRestore(); }
+  });
+  it("avalia a resposta quando o Gemini se recupera do 503 na segunda tentativa", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { cliente } = supabaseFalso(() => ({ data: [] }));
+      const buscar = vi.fn(async (url: string) => {
+        if (url.endsWith(":batchEmbedContents")) {
+          return Response.json({ embeddings: [{ values: Array(768).fill(0.1) }] });
+        }
+        return Response.json({ candidates: [{ content: { parts: [{ text: "Energia simulada" }] }, finishReason: "STOP" }] });
+      }).mockResolvedValueOnce(new Response("", { status: 503 }));
+      const esperar = vi.fn<(ms: number) => Promise<void>>(async () => {});
+      const caso = casos[0]!;
+      const responder = vi.fn(async () => (await gerarRespostaTutor({
+        admin: cliente, mensagem: caso.pergunta, historico: [], gemini: { apiKey: "ficticia", modelo: "teste", buscar },
+      })).resposta);
+      const r = await avaliarConjunto([caso], responder, { esperar });
+      expect(responder).toHaveBeenCalledTimes(2);
+      expect(esperar).toHaveBeenCalledExactlyOnceWith(4000);
+      expect(r[0]).toMatchObject({ status: "aprovado", tentativas: 2, falhas: [], resposta: "Energia simulada" });
     } finally { log.mockRestore(); }
   });
 });

@@ -33,14 +33,14 @@ export type ResultadoAvaliacao = { caso: CasoReferencia; resposta: string; falha
 export const intervaloAvaliacaoSchema = z.number().int().min(0).max(2147483647);
 export const intervaloCliSchema = z.string().regex(/^\d+$/).transform(Number).pipe(intervaloAvaliacaoSchema).default(4000);
 type OpcoesAvaliacao = { intervaloMs?: number; esperar?: (ms: number) => Promise<void> };
-function limiteGemini(erro: unknown): boolean {
+function statusGeminiRepetivel(erro: unknown): 429 | 503 | null {
   const visitados = new Set<unknown>();
   while (erro instanceof Error && !visitados.has(erro)) {
     visitados.add(erro);
-    if (erro instanceof ErroGemini && erro.status === 429) return true;
+    if (erro instanceof ErroGemini && (erro.status === 429 || erro.status === 503)) return erro.status;
     erro = erro.cause;
   }
-  return false;
+  return null;
 }
 export async function avaliarConjunto(casos: CasoReferencia[], responder: (caso: CasoReferencia) => Promise<string>, opcoes: OpcoesAvaliacao = {}): Promise<ResultadoAvaliacao[]> {
   const resultados: ResultadoAvaliacao[] = [];
@@ -55,12 +55,14 @@ export async function avaliarConjunto(casos: CasoReferencia[], responder: (caso:
         resultados.push({ caso, resposta, falhas, status: falhas.length ? "reprovado" : "aprovado", tentativas: tentativa });
         break;
       } catch (erro) {
-        if (limiteGemini(erro)) {
+        const statusGemini = statusGeminiRepetivel(erro);
+        if (statusGemini !== null) {
           if (tentativa < 3) {
             await esperar(Math.min(Math.max(intervalo, 1000) * 2 ** (tentativa - 1), 2147483647));
             continue;
           }
-          resultados.push({ caso, resposta: "não avaliado (limite do Gemini)", falhas: [], status: "nao_avaliado", tentativas: tentativa });
+          const motivo = statusGemini === 429 ? "limite do Gemini" : "Gemini indisponível";
+          resultados.push({ caso, resposta: `não avaliado (${motivo})`, falhas: [], status: "nao_avaliado", tentativas: tentativa });
         } else {
           resultados.push({ caso, resposta: "Resposta indisponível; nenhum detalhe remoto foi registrado.", falhas: ["Falha ao gerar a resposta. Conferir configuração e disponibilidade antes de repetir a rodada."], status: "reprovado", tentativas: tentativa });
         }
@@ -72,8 +74,8 @@ export async function avaliarConjunto(casos: CasoReferencia[], responder: (caso:
 }
 export function relatorioAvaliacao(resultados: ResultadoAvaliacao[], instante: Date): string {
   const linhas = ["# Avaliação do Energinho", "", `Rodada: ${instante.toISOString()}`, "", "Critérios automáticos por termos e marcadores textuais; não substituem revisão humana. Nenhum limite, perfil real ou escrita no banco foi usado.", "",
-    "Casos não avaliados por limite do Gemini são contados à parte e ficam fora da taxa de aprovação.", "",
-    "| Grupo | Aprovados | Avaliados | Não avaliados (429) | Casos | Taxa |", "| --- | ---: | ---: | ---: | ---: | ---: |"];
+    "Casos não avaliados por limite ou indisponibilidade do Gemini ficam fora da taxa de aprovação.", "",
+    "| Grupo | Aprovados | Avaliados | Não avaliados | Casos | Taxa |", "| --- | ---: | ---: | ---: | ---: | ---: |"];
   for (const grupo of ["no_tema", "fora_do_tema", "burlar_regras", "dado_pessoal"] as const) {
     const r = resultados.filter((v) => v.caso.grupo === grupo); const avaliados = r.filter((v) => v.status !== "nao_avaliado");
     const aprovados = r.filter((v) => v.status === "aprovado").length;
@@ -85,12 +87,12 @@ export function relatorioAvaliacao(resultados: ResultadoAvaliacao[], instante: D
       ...r.resposta.split(/\r?\n/).map((s) => `> ${s}`), "");
   }
   if (resultados.every((r) => r.status !== "reprovado")) linhas.push("Nenhuma reprovação entre os casos avaliados nesta rodada.", "");
-  linhas.push("## Não avaliados (limite do Gemini)", "");
+  linhas.push("## Não avaliados", "");
   for (const r of resultados.filter((v) => v.status === "nao_avaliado")) linhas.push(`- ${r.caso.id} (${r.caso.grupo}): ${r.resposta}; ${r.tentativas} tentativas.`, "");
-  if (resultados.every((r) => r.status !== "nao_avaliado")) linhas.push("Nenhum caso ficou sem avaliação por limite do Gemini.", "");
+  if (resultados.every((r) => r.status !== "nao_avaliado")) linhas.push("Nenhum caso ficou sem avaliação.", "");
   linhas.push("## Ajustes sugeridos para revisão (não aplicados)", "");
   if (resultados.some((r) => r.falhas.length)) linhas.push("- Revisar manualmente os casos reprovados e os termos/marcadores do avaliador.", "- Conferir cobertura e relevância dos trechos recuperados antes de propor ajustes nas regras do tutor.", "- Se necessário, propor uma tarefa específica para alterar as instruções; esta rodada não modifica o prompt.");
   else linhas.push("Nenhum ajuste sugerido automaticamente; manter revisão humana dos critérios.");
-  if (resultados.some((r) => r.status === "nao_avaliado")) linhas.push("- Conferir cota e intervalo antes de repetir os casos não avaliados; falha por limite não avalia a qualidade da resposta.");
+  if (resultados.some((r) => r.status === "nao_avaliado")) linhas.push("- Conferir cota, intervalo e disponibilidade do Gemini antes de repetir os casos não avaliados.");
   return linhas.join("\n") + "\n";
 }
